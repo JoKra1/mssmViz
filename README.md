@@ -25,6 +25,6 @@ After selecting the conda environment you just created as kernel, you can start 
 
 ## To get started
 
- - With GAMMs: Take a look at tutorial 1 in the tutorial folder.
+ - With GAMMs: Take a look at tutorial 1.
  - With sms-IR-GAMMs: Take a look at tutorial 2.
  - With sms-GAMMs: Take a look at tutorial 3.
