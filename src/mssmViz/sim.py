@@ -129,7 +129,7 @@ def sim4(n,scale,c=1,family=Gaussian()):
         y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n)
     
     elif isinstance(family,Binomial):
-        mu = family.link.fi(mu)
+        mu = family.link.fi(mu*0.1)
         y = scp.stats.binom.rvs(1, mu, size=n)
 
     dat = pd.DataFrame({"y":y,
