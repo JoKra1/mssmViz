@@ -56,7 +56,7 @@ def sim3(n,scale,c=1,family=Gaussian()):
         y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n)
     
     elif isinstance(family,Binomial):
-        mu = family.link.fi(mu)
+        mu = family.link.fi(mu*0.1)
         y = scp.stats.binom.rvs(1, mu, size=n)
 
     dat = pd.DataFrame({"y":y,
@@ -170,8 +170,7 @@ def sim5(n):
     
     for i in range(n):
         y[i] = int(np.random.choice([0,1,2,3,4],p=np.exp(ps[i,:]),size=1)[0])
-    plt.scatter(x0,y)
-    plt.show()
+
     dat = pd.DataFrame({"y":y,
                         "x0":x0})
     return dat
@@ -187,19 +186,19 @@ def sim6(n,family=GAUMLSS([Identity(),LOG()])):
     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
     - mgcv source code: gam.sim.r
 
-    :param family: Distribution for response variable, must be: `GAUMLSS()`, `GAMLSS()`. Defaults to `GAUMLSS([Identity(),LOG()])`
+    :param family: Distribution for response variable, must be: `GAUMLSS()`, `GAMMALS()`. Defaults to `GAUMLSS([Identity(),LOG()])`
     :type family: GAMLSSFamily, optional
     """
     x0 = np.random.rand(n)
-    eta_sd = np.log(2* np.sin(np.pi*x0))
-    eta_mean = 0.2*np.power(x0,11)*np.power(10*(1-x0),6)+10*np.power(10*x0,3)*np.power(1-x0,10)
+    mu_sd = 2* np.sin(np.pi*x0)
+    mu_mean = 0.2*np.power(x0,11)*np.power(10*(1-x0),6)+10*np.power(10*x0,3)*np.power(1-x0,10)
 
-    mus = [family.links[0].fi(eta_mean),family.links[1].fi(eta_sd)]
+    mus = [mu_mean,mu_sd]
 
     if isinstance(family,GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0],scale=mus[1],size=n)
 
-    elif isinstance(family,GAMLSS):
+    elif isinstance(family,GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -210,6 +209,9 @@ def sim6(n,family=GAUMLSS([Identity(),LOG()])):
         # \beta = 1/\phi/\mu
         # scipy docs, say to set scale to 1/\beta.
         # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+
+        mus[0] += 1
+        mus[1] += 1
 
         alpha = 1/mus[1]
         beta = alpha/mus[0]  
