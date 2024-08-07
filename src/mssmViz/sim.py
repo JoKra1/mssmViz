@@ -3,6 +3,8 @@ import scipy as scp
 import pandas as pd
 from mssm.models import *
 
+################################## Contains simulations to simulate for GAMM & GAMMLSS models ##################################
+
 def sim3(n,scale,c=1,family=Gaussian()):
     """
     First Simulation performed by Wood et al., (2016): 4 smooths, 1 is really zero everywhere.
