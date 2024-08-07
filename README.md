@@ -1,18 +1,18 @@
-# mssm_tutorials
+# mssmViz
 
 ## Description
 
-Tutorials for the Markov-switching Spline Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs) semi Markov-switching GAMMs (sMs-GAMMs) and sMs Impulse Response GAMMs (sMs-IR-GAMMs).
+Plotting functions for the Massive Smooth Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs) and Generalized Additive Mixed Models of Location Scale and Shape (GAMMLSS). In addition, a tutorial for ``mssm`` is provided with this repository.
 
 ## Installation
 
 To install ``mssm`` simply run:
 
 ```
-conda create -n mssm_env python=3.10
+conda create -n mssm_env python=3.11
 conda activate mssm_env
 pip install mssm
-pip install matplotlib # Only needed for tutorials
+pip install matplotlib # Needed for tutorials
 ```
 
 Subsequently, clone this tutorial repository into a folder of your choice:
@@ -21,10 +21,11 @@ Subsequently, clone this tutorial repository into a folder of your choice:
 git clone https://github.com/JoKra1/mssm_tutorials.git
 ```
 
-After selecting the conda environment you just created as kernel, you can start working through the tutorials!
+After selecting the conda environment you just created as kernel and navigating to the folder into which you cloned this repository, you can install `mssmViz` plot functions
+by running
 
-## To get started
+```
+pip install -e .
+```
 
- - With GAMMs: Take a look at tutorial 1.
- - With sms-IR-GAMMs: Take a look at tutorial 2.
- - With sms-GAMMs: Take a look at tutorial 3.
+The -e flag will ensure that any new changes you pull from this repository will be reflected when you use the plot functions.
