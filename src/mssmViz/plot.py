@@ -65,9 +65,23 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
     # Check for each combination in continuous prediction columns whether the values are within
     # min and max of the respective trainings columns
     pred_in_limits = np.ones(len(sort_pred),dtype=bool)
-
+    sort_pred_scaled = copy.deepcopy(sort_pred)
+    sort_train_scaled = copy.deepcopy(sort_train)
+    
+    # Based on exclude.too.far function in mgcv - scale new & train data to be in unit square
+    # see: https://rdrr.io/cran/mgcv/src/R/plots.r#sym-exclude.too.far
     for cont_i in range(sort_pred.shape[1]):
-        pred_in_limits = pred_in_limits & ((sort_pred[:,cont_i] <= np.max(sort_train[:,cont_i])) & (sort_pred[:,cont_i] >= np.min(sort_train[:,cont_i])))
+        
+        min_pred = min(sort_pred_scaled[:,cont_i])
+        sort_pred_scaled[:,cont_i] -= min_pred
+        sort_train_scaled[:,cont_i] -= min_pred
+        max_pred = max(sort_pred_scaled[:,cont_i])
+        sort_pred_scaled[:,cont_i] /= max_pred
+        sort_train_scaled[:,cont_i] /= max_pred
+
+    # Then find minimum distance to any data point for each prediction value
+    dist = np.array([min(np.linalg.norm(sort_train_scaled - sort_pred_scaled[predi,:],axis=1)) for predi in range(sort_pred.shape[0])])
+    pred_in_limits[dist > 0.1] = False
 
     # Now find the counts in the training data for each combination of continuous variables
     train_unq,train_unq_counts = np.unique(sort_train,axis=0,return_counts=True)
@@ -75,7 +89,7 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
     return pred_in_limits,train_unq,train_unq_counts.astype(float),cont_vars
 
 
-def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,ylim,link):
+def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,ylim,link,legend_label):
     """Internal function to visualize a univariate smooth of covariate `x1` or a tensor smooth of covariate `x1` and `x2`.
 
     Called by :func:`plot`, :func:`plot_fitted`, and :func:`plot_diff`.
@@ -108,6 +122,8 @@ def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,y
     :type ylim: (float,float)
     :param link: Link function of model.
     :type link: Link
+    :param legend_label: Legend label to pass to univariate smooths.
+    :type legend_label: str
     """
     
     # Handle tensor smooth case
@@ -164,11 +180,14 @@ def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,y
                     [*(cu),*np.flip(cl)],
                     color=_cmp(col),alpha=0.5)
             
-        ax.plot(x,y,color=_cmp(col))
+        ax.plot(x,y,color=_cmp(col),label=legend_label)
+
+        if not ylim is None:
+            ax.set_ylim(ylim)
 
 def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int = 30,ci=None,
          ci_alpha=0.05,use_inter=False,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
-         plot_exist=True,te_exist_style='both',response_scale=False,axs=None,
+         plot_exist=True,plot_exist_style='both',response_scale=False,axs=None,
          fig_size=(6/2.54,6/2.54),math_font_size = 9,math_font = 'cm',
          ylim=None,prov_cols=None):
     """Helper function to plot all smooth functions estimated by a `GAMM` or `GAMLSS` model.
@@ -216,8 +235,8 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
     :param plot_exist: Whether or not an indication of the data distribution should be provided. For univariate smooths setting this to True will add a rug-plot to the
     bottom, indicating for which covariate values samples existed in the training data. For tensor smooths setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
     :type plot_exist: bool, optional
-    :param te_exist_style: Determines the style of the data distribution indication for tensor smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
-    :type te_exist_style: str, optional
+    :param plot_exist_style: Determines the style of the data distribution indication for smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
+    :type plot_exist_style: str, optional
     :param response_scale: Whether or not predictions and CIs should be shown on the scale of the model predictions (linear scale) or on the 'response-scale' i.e., the scale of the mean, defaults to False
     :type response_scale: bool, optional
     :param axs: A list of matplotlib.axis on which Figures should be drawn, defaults to None in which case axis will be created by the function and plot.show() will be called at the end
@@ -356,12 +375,12 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                 pred -= _cf[0]
 
             # Compute data limits and anything needed for rug plot
-            te_in_limits = None
+            plot_in_limits = None
             if plot_exist:
                 pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,None)
 
-            if len(tvars) == 2 and plot_exist and (te_exist_style == "both" or te_exist_style == "hide"):
-                te_in_limits = pred_in_limits
+            if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
+                plot_in_limits = pred_in_limits
             
             # Prepare link to transform prediction + ci to response-scale
             link = None
@@ -372,7 +391,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                     link = model.family.link
 
             # Now plot
-            __pred_plot(pred,b,tvars,te_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,0.7 if prov_cols is None else prov_cols,ylim,link)
+            __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,0.7 if prov_cols is None else prov_cols,ylim,link,None)
 
             # Specify labels and add rug plots if requested
             if len(tvars) == 1:
@@ -383,19 +402,19 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
 
                 if plot_exist:
                     
-                    train_unq_counts[train_unq_counts > 0] = 1 
-                    pred_range = np.abs(np.max(pred) - np.min(pred))*0.025
+                    #train_unq_counts[train_unq_counts > 0] = 1 
+                    #pred_range = np.abs(np.max(pred) - np.min(pred))*0.025
                     x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
-                    x_range = np.abs(np.max(x_counts) - np.min(x_counts))
+                    #x_range = np.abs(np.max(x_counts) - np.min(x_counts))
                     
-                    axs[axi].bar(x=x_counts,bottom=axs[axi].get_ylim()[0],height=pred_range*train_unq_counts,color='black',width=max(0.05,x_range/(2*len(x_counts))))
+                    axs[axi].scatter(x_counts,[axs[axi].get_ylim()[0]]*len(x_counts),marker='|',color='black',linewidths=0.25)
             
             elif len(tvars) == 2:
                 axs[axi].set_ylabel(tvars[1],fontweight='bold')
                 axs[axi].set_xlabel(tvars[0],fontweight='bold')
                 axs[axi].set_box_aspect(1)
                 
-                if plot_exist and (te_exist_style == "both" or te_exist_style == 'rug'):
+                if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
                     train_unq_counts[train_unq_counts > 0] = 0.1
                     x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
                     y_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[1] for cvar in cont_vars]])
@@ -502,12 +521,12 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                     pred -= _cf[0]
 
                 # Compute data-limits and prepare rug plots
-                te_in_limits = None
+                plot_in_limits = None
                 if plot_exist:
                     pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,[sti_by])
-                
-                if len(tvars) == 2 and plot_exist and (te_exist_style == "both" or te_exist_style == "hide"):
-                    te_in_limits = pred_in_limits
+
+                if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
+                    plot_in_limits = pred_in_limits
 
                 # Get correct link to transform to response scale
                 link = None
@@ -517,7 +536,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                     else:
                         link = model.family.link
 
-                __pred_plot(pred,b,tvars,te_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,level_col,ylim,link)
+                __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,level_col,ylim,link,None)
                 
                 # And set up labels again + rug plots if requested
                 if not isinstance(terms[sti],fs):
@@ -529,22 +548,24 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                         axs[axi].spines['top'].set_visible(False)
                         axs[axi].spines['right'].set_visible(False)
                         
-                        if plot_exist:
+                        if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
                     
                             #train_unq_counts /= np.max(train_unq_counts)
-                            train_unq_counts[train_unq_counts > 0] = 1 
-                            pred_range = np.abs(np.max(pred) - np.min(pred))*0.025
+                            #train_unq_counts[train_unq_counts > 0] = 1 
+                            #pred_range = np.abs(np.max(pred) - np.min(pred))*0.01
                             x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
-                            x_range = np.abs(np.max(x_counts) - np.min(x_counts))
+                            #x_range = np.abs(np.max(x_counts) - np.min(x_counts))
 
-                            axs[axi].bar(x=x_counts,bottom=axs[axi].get_ylim()[0],height=pred_range*train_unq_counts,color='black',width=max(0.05,x_range/(2*len(x_counts))))
+                            #axs[axi].bar(x=x_counts,bottom=axs[axi].get_ylim()[0],height=pred_range*train_unq_counts,color='black',width=max(0.05,x_range/(2*len(x_counts))))
+                            axs[axi].scatter(x_counts,[axs[axi].get_ylim()[0]]*len(x_counts),marker='|',color='black',linewidths=0.25)
+
 
                     elif len(tvars) == 2:
                         axs[axi].set_ylabel(tvars[1],fontweight='bold')
                         axs[axi].set_xlabel(tvars[0],fontweight='bold')
                         axs[axi].set_box_aspect(1)
 
-                        if plot_exist and (te_exist_style == "both" or te_exist_style == 'rug'):
+                        if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
 
                             train_unq_counts[train_unq_counts > 0] = 0.1
                             x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
@@ -586,11 +607,11 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
         plt.show()
 
 
-def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dist_par=0,
+def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pred_factors: [str] or None =None,dist_par=0,
                 ci=True,ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,
-                cmp:str or None = None,plot_exist=True,te_exist_style='both',
+                cmp:str or None = None,plot_exist=True,plot_exist_style='both',
                 response_scale=True,ax=None,fig_size=(6/2.54,6/2.54),ylim=None,col=0.7,
-                label=None,title=None):
+                label=None,legend_label=False,title=None):
     """Plots the model prediction based on (a subset of) the terms included in the model for new data `pred_dat`.
 
     In contrast to `plot`, the predictions are by default transformed to the scale of the mean (i.e., response-scale). If `use=None`, the model
@@ -628,6 +649,8 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
     :type model: GAMM or GAMLSS
     :param use: The indices corresponding to the terms that should be used to obtain the prediction or ``None`` in which case all fixed effects will be used, defaults to None
     :type use: [int] or None, optional
+    :param pred_factors: List of factor variables to consider for data limit/availability computations - by default, all factor variables in the model are considered.
+    :type pred_factors: [str]
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMLSS model is provided, defaults to 0
     :type dist_par: int, optional
     :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None
@@ -646,8 +669,8 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
     :param plot_exist: Whether or not an indication of the data distribution should be provided. For predictions visualized as a function of a single variable setting this to True will add a rug-plot to the
     bottom, indicating for which covariate values samples existed in the training data. For predictions visualized as a function of a two variables setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
     :type plot_exist: bool, optional
-    :param te_exist_style: Determines the style of the data distribution indication for tensor smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
-    :type te_exist_style: str, optional
+    :param plot_exist_style: Determines the style of the data distribution indication for smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
+    :type plot_exist_style: str, optional
     :param response_scale: Whether or not predictions and CIs should be shown on the scale of the model predictions (linear scale) or on the 'response-scale' i.e., the scale of the mean, defaults to True
     :type response_scale: bool, optional
     :param ax: A matplotlib.axis on which the Figure should be drawn, defaults to None in which case an axis will be created by the function and plot.show() will be called at the end
@@ -658,8 +681,10 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
     :type ylim: (float,float), optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen colormap, defaults to 0.7
     :type col: float, optional
-    :param label: A list of labels to add to the y axis for univariate predictions or to the color-bar for tensor predictions, defaults to None
-    :type label: [str], optional
+    :param label: A labels to add to the y axis for univariate predictions (or to a legend, if `legend_label`=True) or to the color-bar for tensor predictions, defaults to None
+    :type label: str, optional
+    :param legend_label: Whether or not any `label` should be added to a legend (don't forget to call :func:`plt.legend()`) or to the y-axis for univariate predicitions, defaults to False (the latter)
+    :type legend_label: bool, optional
     :param title: A list of titles to add to each plot, defaults to None
     :type title: [str], optional
     :raises ValueError: If a visualization is requested for more than 2 variables
@@ -712,16 +737,17 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
         pred,_,b= model.predict(use,pred_dat,ci=ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
 
     # Optionally get data limits
-    te_in_limits = None
+    plot_in_limits = None
     if plot_exist:
-        pred_factors = [var for var in pred_dat.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
-        if len(pred_factors) == 0:
+        if pred_factors is None:
+            pred_factors = [var for var in pred_dat.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
+        if (not pred_factors is None) and len(pred_factors) == 0:
             pred_factors = None
 
         pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat,tvars,pred_factors)
 
-    if len(tvars) == 2 and plot_exist and (te_exist_style == "both" or te_exist_style == "hide"):
-        te_in_limits = pred_in_limits
+    if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
+        plot_in_limits = pred_in_limits
 
     # By default transform predictions to scale of mean
     link = None
@@ -731,12 +757,16 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
         else:
             link = model.family.link
     
-    __pred_plot(pred,b,tvars,te_in_limits,x1,x2,x1_exp,ci,len(x1),ax,_cmp,col,ylim,link)
+    plot_label = None
+    if legend_label and len(tvars) == 1:
+        plot_label = label
+
+    __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,ci,len(x1),ax,_cmp,col,ylim,link,plot_label)
 
     # Label axes + visualize rug plots if requested
     if len(tvars) == 2:
        
-        if plot_exist and (te_exist_style == "both" or te_exist_style == 'rug'):
+        if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
 
             train_unq_counts[train_unq_counts > 0] = 0.1
             x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
@@ -759,8 +789,13 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
             cbar.set_label(label,fontweight='bold')
         else:
             cbar.set_label("Predicted",fontweight='bold')
+
+        ax.set_xlabel(tvars[0],fontweight='bold')
+        ax.set_ylabel(tvars[1],fontweight='bold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
     else:
-        if not label is None:
+        if not label is None and (legend_label==False):
             ax.set_ylabel(label,fontweight='bold')
         else:
             ax.set_ylabel("Predicted",fontweight='bold')
@@ -768,14 +803,14 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,dis
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        if plot_exist:
+        if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
                     
-            train_unq_counts[train_unq_counts > 0] = 1 
-            pred_range = np.abs(np.max(pred) - np.min(pred))*0.025
+            #train_unq_counts[train_unq_counts > 0] = 1 
+            #pred_range = np.abs(np.max(pred) - np.min(pred))*0.025
             x_counts = np.ndarray.flatten(train_unq[:,[cvar ==tvars[0] for cvar in cont_vars]])
-            x_range = np.abs(np.max(x_counts) - np.min(x_counts))
-            
-            ax.bar(x=x_counts,bottom=ax.get_ylim()[0],height=pred_range*train_unq_counts,color='black',width=max(0.05,x_range/(2*len(x_counts))))
+            #x_range = np.abs(np.max(x_counts) - np.min(x_counts))
+
+            ax.scatter(x_counts,[ax.get_ylim()[0]]*len(x_counts),marker='|',color='black',linewidths=0.25)
     
     if not title is None:
         ax.set_title(title,fontweight='bold')
@@ -942,7 +977,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
         else:
             link = model.family.link
 
-    __pred_plot(pred,b,tvars,in_limits,x1,x2,x1_exp,True,n_vals,ax,_cmp,col,ylim,link)
+    __pred_plot(pred,b,tvars,in_limits,x1,x2,x1_exp,True,n_vals,ax,_cmp,col,ylim,link,None)
 
     if len(tvars) == 2:
         # Credit to Lasse: https://stackoverflow.com/questions/63118710/
@@ -957,6 +992,11 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
             cbar.set_label(label,fontweight='bold')
         else:
             cbar.set_label("Predicted Difference",fontweight='bold')
+        
+        ax.set_xlabel(tvars[0],fontweight='bold')
+        ax.set_ylabel(tvars[1],fontweight='bold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
     else:
         if not label is None:
             ax.set_ylabel(label,fontweight='bold')
@@ -981,14 +1021,14 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
 
 
 def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="deviance",
-             ar_lag=100,response_scale=False,axs=None,fig_size=(6/2.54,6/2.54)):
+             ar_lag=100,response_scale=False,qq=True,axs=None,fig_size=(6/2.54,6/2.54)):
     """Plots residual plots useful for validating whether the `model` meets the regression assumptions.
 
     At least four plots will be generated:
 
     - A scatter-plot: Model predictions (always on response/mean scale) vs. Observations
     - A scatter-plot: Model predictions (optionally on response/mean scale) vs. Residuals
-    - A Histogram: Residuals (with density overlay of expected distribution)
+    - A Histogram/QQ-plot: Residuals (with density overlay of expected distribution)/Quantile-quantile plot for residuals against theoretical quantiles.
     - An ACF plot: Showing the auto-correlation in the residuals at each of `ar_lag` lags
     
     For each additional predictor included in `pred_viz`, an additional scatter-plot will be generated plotting the predictor values against the residuals.
@@ -1022,6 +1062,8 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     :type ar_lag: int, optional
     :param response_scale: Whether or not predictions should be visualized on the scale of the mean or not, defaults to False - i.e., predictions are visualized on the scale of the model predictions/linear scale
     :type response_scale: bool, optional
+    :param qq: Whether or not a qq-plot should be drawn instead of a Histogram, defaults to True
+    :type qq: bool, optional
     :param axs: A list of matplotlib.axis on which Figures should be drawn, defaults to None in which case axis will be created by the function and plot.show() will be called at the end
     :type axs: [matplotlib.axis], optional
     :param fig_size: Tuple holding figure size, which will be used to determine the size of the figures created if `axs=None`, defaults to (6/2.54,6/2.54)
@@ -1107,17 +1149,32 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
             axi += 1
 
     # Histogram for normality
-    axs[axi].hist(res,bins=100,density=True,color="black")
-    x = np.linspace(scp.stats.norm.ppf(0.0001,scale=math.sqrt(sigma)),
-                    scp.stats.norm.ppf(0.9999,scale=math.sqrt(sigma)), 100)
+    if qq==False:
+        axs[axi].hist(res,bins=100,density=True,color="black")
+        x = np.linspace(scp.stats.norm.ppf(0.0001,scale=math.sqrt(sigma)),
+                        scp.stats.norm.ppf(0.9999,scale=math.sqrt(sigma)), 100)
 
-    axs[axi].plot(x, scp.stats.norm.pdf(x,scale=math.sqrt(sigma)),
-            'r-', lw=3, alpha=0.6)
+        axs[axi].plot(x, scp.stats.norm.pdf(x,scale=math.sqrt(sigma)),
+                'r-', lw=3, alpha=0.6)
 
-    axs[axi].set_xlabel("Residuals",fontweight='bold')
-    axs[axi].set_ylabel("Density",fontweight='bold')
-    axs[axi].spines['top'].set_visible(False)
-    axs[axi].spines['right'].set_visible(False)
+        axs[axi].set_xlabel("Residuals",fontweight='bold')
+        axs[axi].set_ylabel("Density",fontweight='bold')
+        axs[axi].spines['top'].set_visible(False)
+        axs[axi].spines['right'].set_visible(False)
+    else:
+        # Get theoretical quantiles
+        tq = scp.stats.norm.ppf(np.linspace(0,1,len(res)),scale=math.sqrt(sigma))
+        # Get empirical quantiles
+        eq = np.quantile(res,np.linspace(0,1,len(res)))
+        axs[axi].scatter(tq,eq,color="black",facecolor='none')
+        # Add theoretical truth line
+        axs[axi].plot(tq,tq,color="black")
+
+        axs[axi].set_xlabel("Theoretical Quantiles",fontweight='bold')
+        axs[axi].set_ylabel("Empirical Residual Quantiles",fontweight='bold')
+        axs[axi].spines['top'].set_visible(False)
+        axs[axi].spines['right'].set_visible(False)
+
     axi += 1
 
     # Auto-correlation check
