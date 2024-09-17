@@ -1,0 +1,101 @@
+# Push package to pypi
+
+name: Python package
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    - name: Install build
+      run: |
+          python -m pip install build
+
+    - name: Build a binary wheel and a source tarball
+      run: python -m build
+
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+  
+  publish-release:
+    # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+    # Publish to pypi stable
+    needs:
+        - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mssmViz
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          
+      - name: Publish wheels to test-pypi
+        uses: pypa/gh-action-pypi-publish@release/v1
+    
+  release:
+    # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+
+    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+    # Only create release if pull-target was 'stable' or work-flow was triggered on 'stable'
+    # if: github.ref_name == 'stable' || github.base_ref == 'stable'
+    # Changed this, because the above did not work - instead simply release on new tags.
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # Necessary for creating releases apparently.
+
+    steps:
+
+      - name: Echo Branch
+        run: echo "${{ github.ref_name }} ${{ github.base_ref }}"
+      
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Print dist content
+        run: ls ./dist
+        
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create
+          '${{ github.ref_name }}'
+          --repo '${{ github.repository }}'
+          --notes ""
+          
+      - name: Connect Artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          gh release upload
+          '${{ github.ref_name }}' dist/**
+          --repo '${{ github.repository }}'
