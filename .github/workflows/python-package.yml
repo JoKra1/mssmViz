@@ -29,30 +29,6 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
-  
-  publish-release:
-    # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
-    # Publish to pypi stable
-    needs:
-        - build
-    runs-on: ubuntu-latest
-
-    environment:
-      name: pypi
-      url: https://pypi.org/p/mssmViz
-
-    permissions:
-      id-token: write
-
-    steps:
-      - name: Download Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-          
-      - name: Publish wheels to test-pypi
-        uses: pypa/gh-action-pypi-publish@release/v1
     
   release:
     # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
@@ -99,3 +75,27 @@ jobs:
           gh release upload
           '${{ github.ref_name }}' dist/**
           --repo '${{ github.repository }}'
+    
+  publish-release:
+    # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+    # Publish to pypi stable (only on release)
+    needs:
+        - release
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mssmViz
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          
+      - name: Publish wheels to pypi
+        uses: pypa/gh-action-pypi-publish@release/v1
