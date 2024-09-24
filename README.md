@@ -2,7 +2,7 @@
 
 ## Description
 
-Plotting functions for the Massive Smooth Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs) and Generalized Additive Mixed Models of Location Scale and Shape (GAMMLSS). In addition, a tutorial for ``mssm`` is provided with this repository.
+Plotting functions for the Mixed Sparse Smooth Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs), Generalized Additive Mixed Models of Location Scale and Shape (GAMMLSS), and even more general smooth models in the sense defined by [Wood, Pya, & Säfken (2016)](https://doi.org/10.1080/01621459.2016.1180986). In addition, a tutorial for ``mssm`` is provided with this repository.
 
 ## Installation
 

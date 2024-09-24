@@ -185,12 +185,12 @@ def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,y
         if not ylim is None:
             ax.set_ylim(ylim)
 
-def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int = 30,ci=None,
+def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:int = 30,ci=None,
          ci_alpha=0.05,use_inter=False,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
          plot_exist=True,plot_exist_style='both',response_scale=False,axs=None,
          fig_size=(6/2.54,6/2.54),math_font_size = 9,math_font = 'cm',
          ylim=None,prov_cols=None):
-    """Helper function to plot all smooth functions estimated by a `GAMM` or `GAMLSS` model.
+    """Helper function to plot all smooth functions estimated by a `GAMM` or `GAMMLSS` model.
 
     Smooth functions are automatically evaluated over a range of `n_values` spaced equally to cover their entire covariate.
     For tensor smooths a `n_values`*`n_values` grid is created. Visualizations can be obtained on the scale of the linear predictor (the default), but also
@@ -198,7 +198,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
 
     To simply obtain visualizations of all smooth terms estimated, it is sufficient to call::
 
-        plot(model) # or plot(model,dist_par=0) in case of a GAMLSS model
+        plot(model) # or plot(model,dist_par=0) in case of a GAMMLSS model
     
     This will visualize all smooth terms estimated by the model and automatically determine whether confidence intervals should be drawn or not (by default CIs
     are only visualized for fixed effects). Note that, for tensor smooths, areas of the smooth for which the CI contains zero will be visualized with low opacity
@@ -209,11 +209,11 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
     - Wood, S. N. (2017). Generalized Additive Models: An Introduction with R, Second Edition (2nd ed.).
     - Simpson, G. (2016). Simultaneous intervals for smooths revisited.
 
-    :param model: The estimated GAMM or GAMLSS model for which the visualizations are to be obtained
-    :type model: GAMM or GAMLSS
+    :param model: The estimated GAMM or GAMMLSS model for which the visualizations are to be obtained
+    :type model: GAMM or GAMMLSS
     :param which: The indices corresponding to the smooth that should be visualized or ``None`` in which case all smooth terms will be visualized, defaults to None
     :type which: [int] or None, optional
-    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMLSS model is provided, defaults to 0
+    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
     :param n_vals: Number of covariate values over which to evaluate the function. Will be **2 for tensor smooths, defaults to 30
     :type n_vals: int, optional
@@ -254,7 +254,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
     :raises ValueError: If fewer matplotlib axis are provided than the number of figures that would be created
     """
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
         model.formula = model.formulas[dist_par]
     
@@ -357,8 +357,8 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
             if use_inter:
                 use = [0,sti]
 
-            if isinstance(model,GAMLSS):
-                # Reset formula to prevent any problems with the call to predict, since the GAMLSS class might
+            if isinstance(model,GAMMLSS):
+                # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
                 # change this attribute itself.
                 model.formula = None
                 
@@ -385,7 +385,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
             # Prepare link to transform prediction + ci to response-scale
             link = None
             if response_scale:
-                if isinstance(model,GAMLSS):
+                if isinstance(model,GAMMLSS):
                     link = model.family.links[dist_par]
                 else:
                     link = model.family.link
@@ -503,7 +503,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                 if use_inter:
                     use = [0,sti]
 
-                if isinstance(model,GAMLSS):
+                if isinstance(model,GAMMLSS):
                     # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
                     # change this attribute itself.
                     model.formula = None
@@ -531,7 +531,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                 # Get correct link to transform to response scale
                 link = None
                 if response_scale:
-                    if isinstance(model,GAMLSS):
+                    if isinstance(model,GAMMLSS):
                         link = model.family.links[dist_par]
                     else:
                         link = model.family.link
@@ -599,7 +599,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
                 axs[axi].spines['right'].set_visible(False)
                 axi += 1
     
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Clean up
         model.formula = None
 
@@ -607,7 +607,7 @@ def plot(model:GAMM or GAMLSS,which:[int] or None = None, dist_par=0, n_vals:int
         plt.show()
 
 
-def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pred_factors: [str] or None =None,dist_par=0,
+def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pred_factors: [str] or None =None,dist_par=0,
                 ci=True,ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,
                 cmp:str or None = None,plot_exist=True,plot_exist_style='both',
                 response_scale=True,ax=None,fig_size=(6/2.54,6/2.54),ylim=None,col=0.7,
@@ -645,13 +645,13 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pre
     :type pred_dat: pandas.DataFrame
     :param tvars: List of variables to be visualized - must contain one string for predictions visualized as a function of a single variable, two for predictions visualized as a function of two variables
     :type tvars: [str]
-    :param model: The estimated GAMM or GAMLSS model for which the visualizations are to be obtained
-    :type model: GAMM or GAMLSS
+    :param model: The estimated GAMM or GAMMLSS model for which the visualizations are to be obtained
+    :type model: GAMM or GAMMLSS
     :param use: The indices corresponding to the terms that should be used to obtain the prediction or ``None`` in which case all fixed effects will be used, defaults to None
     :type use: [int] or None, optional
     :param pred_factors: List of factor variables to consider for data limit/availability computations - by default, all factor variables in the model are considered.
     :type pred_factors: [str]
-    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMLSS model is provided, defaults to 0
+    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
     :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None
     in which case the CI will be visualized for fixed effects but not for random smooths
@@ -690,7 +690,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pre
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
     
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
         model.formula = model.formulas[dist_par]
     
@@ -724,7 +724,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pre
         
     _cmp = matplotlib.colormaps[cmp] 
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
         # change this attribute itself.
         model.formula = None
@@ -752,7 +752,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pre
     # By default transform predictions to scale of mean
     link = None
     if response_scale:
-        if isinstance(model,GAMLSS):
+        if isinstance(model,GAMMLSS):
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -815,14 +815,14 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMLSS,use:[int] or None = None,pre
     if not title is None:
         ax.set_title(title,fontweight='bold')
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Clean up
         model.formula = None
 
     if fig is not None:
         plt.show()
 
-def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None = None,dist_par=0,
+def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None = None,dist_par=0,
               ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
               plot_exist=True,response_scale=True,ax=None,n_vals=30,fig_size=(6/2.54,6/2.54),
               ylim=None,col=0.7,label=None,title=None):
@@ -877,11 +877,11 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
     :type pred_dat2: pandas.DataFrame
     :param tvars: List of variables to be visualized - must contain one string for difference predictions visualized as a function of a single variable, two for difference predictions visualized as a function of two variables
     :type tvars: [str]
-    :param model: The estimated GAMM or GAMLSS model for which the visualizations are to be obtained
-    :type model: GAMM or GAMLSS
+    :param model: The estimated GAMM or GAMMLSS model for which the visualizations are to be obtained
+    :type model: GAMM or GAMMLSS
     :param use: The indices corresponding to the terms that should be used to obtain the prediction or ``None`` in which case all fixed effects will be used, defaults to None
     :type use: [int] or None, optional
-    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMLSS model is provided, defaults to 0
+    :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
     :param ci_alpha: The alpha level to use for the standard error calculation. Specifically, 1 - (``alpha``/2) will be used to determine the critical cut-off value according to a N(0,1), defaults to 0.05
     :type ci_alpha: float, optional
@@ -912,7 +912,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
     
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
         model.formula = model.formulas[dist_par]
 
@@ -944,7 +944,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
     _cmp = matplotlib.colormaps[cmp] 
 
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
         # change this attribute itself.
         model.formula = None
@@ -972,7 +972,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
     
     link = None
     if response_scale:
-        if isinstance(model,GAMLSS):
+        if isinstance(model,GAMMLSS):
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -1012,7 +1012,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMLSS,use:[int] or None 
     if not title is None:
         ax.set_title(title,fontweight='bold')
     
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Clean up
         model.formula = None
 
@@ -1075,7 +1075,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     if isinstance(model.family,MULNOMLSS):
         raise TypeError("Function does not currently support `Multinomial` models.")
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
         model.formula = model.formulas[0]
 
@@ -1094,7 +1094,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
         figs = [plt.figure(figsize=fig_size,layout='constrained') for _ in range(n_figures)]
         axs = [fig.add_subplot(1,1,1) for fig in figs]
     
-    if isinstance(model,GAMLSS) == False:
+    if isinstance(model,GAMMLSS) == False:
         _, sigma = model.get_pars() # sigma = **variance** of residuals!
         pred = model.pred # The model prediction for the entire data
     else:
@@ -1102,22 +1102,22 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
         pred = model.overall_preds[0]
 
     if response_scale:
-        if isinstance(model,GAMLSS):
+        if isinstance(model,GAMMLSS):
             pred = model.family.links[0].fi(pred)
         else:
             pred = model.family.link.fi(pred)
 
-    if isinstance(model,GAMLSS) == False:
+    if isinstance(model,GAMMLSS) == False:
         res = model.get_resid(type=resid_type)
     else:
-        res = model.get_resid() # resid are alwasy standardized for GAMLSS models
+        res = model.get_resid() # resid are alwasy standardized for GAMMLSS models
 
     y = model.formula.y_flat[model.formula.NOT_NA_flat] # The dependent variable after NAs were removed
 
     # obs vs. pred plot should always be on response scale
-    if isinstance(model,GAMLSS) == False and (response_scale == False):
+    if isinstance(model,GAMMLSS) == False and (response_scale == False):
         axs[0].scatter(model.family.link.fi(pred),y,color="black",facecolor='none')
-    elif isinstance(model,GAMLSS) and (response_scale == False):
+    elif isinstance(model,GAMMLSS) and (response_scale == False):
         axs[0].scatter(model.family.links[0].fi(pred),y,color="black",facecolor='none')
     else:
         axs[0].scatter(pred,y,color="black",facecolor='none')
@@ -1190,7 +1190,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     axs[axi].spines['top'].set_visible(False)
     axs[axi].spines['right'].set_visible(False)
 
-    if isinstance(model,GAMLSS):
+    if isinstance(model,GAMMLSS):
         # Clean up
         model.formula = None
 

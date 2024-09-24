@@ -476,7 +476,7 @@ def sim5(n,seed=None):
 
 def sim6(n,family=GAUMLSS([Identity(),LOG()]),seed=None):
     """
-    Simulates `n` data-points for a Gaussian or Gamma GAMLSS model - mean and standard deviation/scale change based on 
+    Simulates `n` data-points for a Gaussian or Gamma GAMMLSS model - mean and standard deviation/scale change based on 
     the original functions of Gu & Whaba (1991).
 
     References:
