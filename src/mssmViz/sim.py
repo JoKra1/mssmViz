@@ -2,6 +2,7 @@ import numpy as np
 import scipy as scp
 import pandas as pd
 from mssm.models import *
+from mssm.src.python.smooths import convolve_event
 
 ################################## Contains simulations to simulate for GAMM & GAMMLSS models ##################################
 
@@ -520,3 +521,69 @@ def sim6(n,family=GAUMLSS([Identity(),LOG()]),seed=None):
     dat = pd.DataFrame({"y":y,
                         "x0":x0})
     return dat
+
+def sim7(n,c,scale,family=Gaussian(),seed=None):
+    """
+    An overlap simulation with a random intercept. Two events are present that differ in their onset across
+    different trials - each event triggers a response in the signal (modeled as two functions of Gu & Whaba).
+
+    References:
+
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param n: Number of trials to simulate
+    :type n: int
+    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
+    :type c: float
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
+    :type family: Family, optional
+    """
+
+    np_gen = np.random.default_rng(seed)
+
+    onsets1 = np_gen.integers(5,high=10,size=n)
+    onsets2 = onsets1 + np_gen.integers(1,high=10,size=n)
+    ends = onsets2 + np_gen.integers(15,high=30,size=n)
+    
+    if c > 0:
+        rind = scp.stats.norm.rvs(size=40,scale=c,random_state=seed)
+    else:
+        rind = np.zeros(40)
+
+    y = []
+    time = []
+    fl = []
+    series = []
+
+    for tr in range(n):
+        x = np.linspace(0,1,20)
+        f1 = 2* np.sin(np.pi*x)
+        f2 = 0.2*np.power(x,11)*np.power(10*(1-x),6)+10*np.power(10*x,3)*np.power(1-x,10)
+        f1_emb = np.zeros(ends[tr]+1)
+        f2_emb = np.zeros(ends[tr]+1)
+        f1_emb[0:len(f1)] += f1
+        f2_emb[0:len(f2)] += f2
+
+        # Convolve to shift event onset
+        o1 = convolve_event(f1_emb,onsets1[tr])[0:len(f1_emb)]
+        o2 = convolve_event(f2_emb,onsets2[tr])[0:len(f2_emb)]
+
+        # Create & collect all variables
+        t = np.arange(len(o1))*10
+        y.extend(o1 + o2 + rind[tr%40])
+        time.extend(t)
+        fl.extend([f"l{tr%40}" for _ in range(len(o1))])
+        series.extend([tr for _ in range(len(o1))])
+
+    y = scp.stats.norm.rvs(loc=np.array(y),scale=scale,size=len(y),random_state=seed) 
+
+    dat = pd.DataFrame({"y":y,
+                        "time":time,
+                        "factor":fl,
+                        "series":series})
+    
+    return dat,onsets1,onsets2
