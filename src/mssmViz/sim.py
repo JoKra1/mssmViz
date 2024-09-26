@@ -84,6 +84,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     x = [] # x covariate of each data point
     il = [] # id of each data point
     fact = [] # group of each data point
+    sub = [] # subject of each data point
 
     # Simulation seed
     np_gen = np.random.default_rng(random_seed)
@@ -104,10 +105,14 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
 
     rand_matrix = np.zeros((100,len(time_pred)))
     for sim_idx in range(sim_size):
-        sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+        if not random_seed is None:
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+        else:
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V.toarray(),size=1,random_state=None)
         sample[0] = 0
         take = np_gen.integers(int(len(time_pred)/4),len(time_pred)+1)
         fact.extend(np.repeat(fl[sim_idx],take))
+        sub.extend([f"sub_{sim_idx%20}" for _ in range(take)])
         time.extend(time_pred[0:take])
         x.extend(np.repeat(xl[sim_idx],take))
         il.extend(np.repeat(sim_idx,take))
@@ -119,6 +124,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     time = np.array(time)
     x = np.array(x)
     fact = np.array(fact)
+    sub = np.array(sub)
     ft = np.array(ft).reshape(-1,1)
 
     # Get fixed predictions
@@ -143,6 +149,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
                                 "time":time,
                                 "x":x,
                                 "fact":[f"fact_{fc}" for fc in fact],
+                                "sub":sub,
                                 "series":[f"series_{ic}" for ic in il]})
 
     return sim_fit_dat,(rand_matrix,sim_mat,sim_mat2,fixed_sim_time_coefs,fixed_sim_x_coefs,true_offsets)
@@ -251,7 +258,10 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     
     rand_matrix = np.zeros((100,len(time_pred)))
     for sim_idx in range(sim_size):
-        sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+        if not random_seed is None:
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+        else:
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V.toarray(),size=1,random_state=None)
         sample[0] = 0
         take = np_gen.integers(int(len(time_pred)/4),len(time_pred)+1)
         
@@ -587,3 +597,53 @@ def sim7(n,c,scale,family=Gaussian(),seed=None):
                         "series":series})
     
     return dat,onsets1,onsets2
+
+def sim8(n,c,family=GAUMLSS([Identity(),LOG()]),seed=None):
+    """
+    Like sim6: Simulates `n` data-points for a Gaussian or Gamma GAMMLSS model - mean and standard deviation/scale change based on 
+    the original functions of Gu & Whaba (1991). Difference is that the effect strength of the scale smoother can be manipulated by changing c!
+
+    References:
+    - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+    - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+    - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
+    :type c: float
+    :param family: Distribution for response variable, must be: `GAUMLSS()`, `GAMMALS()`. Defaults to `GAUMLSS([Identity(),LOG()])`
+    :type family: GAMLSSFamily, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    mu_sd = 2* np.sin(np.pi*x0)
+    mu_sd = 3.5 + c*mu_sd
+    mu_mean = 0.2*np.power(x0,11)*np.power(10*(1-x0),6)+10*np.power(10*x0,3)*np.power(1-x0,10)
+
+    mus = [mu_mean,mu_sd]
+
+    if isinstance(family,GAUMLSS):
+        y = scp.stats.norm.rvs(loc=mus[0],scale=mus[1],size=n,random_state=seed)
+
+    elif isinstance(family,GAMMALS):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+
+        mus[0] += 1
+        mus[1] += 1
+
+        alpha = 1/mus[1]
+        beta = alpha/mus[0]  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+    
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0})
+    return dat
