@@ -71,6 +71,9 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     LVp = compute_Linv(Lp,1)
     LV = apply_eigen_perm(Pr,LVp)
     V = (LV.T @ LV) * sim_sigma
+    V = V.toarray()
+    V[np.abs(V) < 1e-4] = 0 # Minimize numerical inaccuracies between different systems to ensure similar behavior
+
     #V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
 
     # Get matrix for x effects
@@ -116,9 +119,9 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     rand_matrix = np.zeros((100,len(time_pred)))
     for sim_idx in range(sim_size):
         if not random_seed is None:
-            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V,size=1,random_state=random_seed+sim_idx)
         else:
-            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V.toarray(),size=1,random_state=None)
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V,size=1,random_state=None)
         sample[0] = 0
         take = np_gen.integers(int(len(time_pred)/4),len(time_pred)+1)
         fact.extend(np.repeat(fl[sim_idx],take))
@@ -228,6 +231,9 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     LVp = compute_Linv(Lp,1)
     LV = apply_eigen_perm(Pr,LVp)
     V = (LV.T @ LV) * sim_sigma
+    V = V.toarray()
+    V[np.abs(V) < 1e-4] = 0 # Minimize numerical inaccuracies between different systems to ensure similar behavior
+
     #V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
 
     # Get matrix for x effects
@@ -278,9 +284,9 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     rand_matrix = np.zeros((100,len(time_pred)))
     for sim_idx in range(sim_size):
         if not random_seed is None:
-            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V.toarray(),size=1,random_state=random_seed+sim_idx)
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=random_seed+sim_idx),cov=V,size=1,random_state=random_seed+sim_idx)
         else:
-            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V.toarray(),size=1,random_state=None)
+            sample = scp.stats.multivariate_normal.rvs(mean=scp.stats.norm.rvs(size=(sim_S.shape[1]),scale=5,random_state=None),cov=V,size=1,random_state=None)
         sample[0] = 0
         take = np_gen.integers(int(len(time_pred)/4),len(time_pred)+1)
         
