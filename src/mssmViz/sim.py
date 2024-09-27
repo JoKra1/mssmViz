@@ -3,6 +3,7 @@ import scipy as scp
 import pandas as pd
 from mssm.models import *
 from mssm.src.python.smooths import convolve_event
+from mssm.src.python.gamm_solvers import cpp_cholP,compute_Linv,apply_eigen_perm
 
 ################################## Contains simulations to simulate for GAMM & GAMMLSS models ##################################
 
@@ -37,7 +38,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     # Get matrix for time effects
     sim_dat = pd.DataFrame({"Time":time_pred,
                             "x":x_pred,
-                            "y":scp.stats.norm.rvs(size=len(time_pred))})
+                            "y":scp.stats.norm.rvs(size=len(time_pred),random_state=20)})
 
     sim_formula = Formula(lhs("y"),
                         [i(),f(["Time"],nk=15)],
@@ -52,7 +53,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
 
     # Get fixed time effects (+intercept)
     fixed1 = np.array([5,*scp.stats.norm.rvs(size=(sim_S.shape[1]-1),scale=5,random_state=fixed_seed)]).reshape(-1,1)
-    fixed2 = np.array([-5,*scp.stats.norm.rvs(size=(sim_S.shape[1]-1),scale=5,random_state=fixed_seed*3)]).reshape(-1,1)
+    fixed2 = np.array([-5,*scp.stats.norm.rvs(size=(sim_S.shape[1]-1),scale=5,random_state=int(fixed_seed*3))]).reshape(-1,1)
     fixed3 = np.zeros_like(fixed2)
     fixed_sim_time_coefs = [fixed1,fixed2,fixed3]
 
@@ -61,7 +62,16 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
 
     # Prepare random smooth sampler
     # Based on Wood (2017, 6.10)
-    V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
+    nH = sim_mat.T @ sim_mat + sim_S
+    Lp, Pr, code = cpp_cholP(nH.tocsc())
+
+    if code != 0:
+        raise ValueError("Cholesky failed.")
+    
+    LVp = compute_Linv(Lp,1)
+    LV = apply_eigen_perm(Pr,LVp)
+    V = (LV.T @ LV) * sim_sigma
+    #V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
 
     # Get matrix for x effects
     sim_formula2 = Formula(lhs("y"),
@@ -188,7 +198,7 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     sim_dat = pd.DataFrame({"Time":time_pred,
                             "x":x_pred,
                             "z":z_pred,
-                            "y":scp.stats.norm.rvs(size=len(time_pred))})
+                            "y":scp.stats.norm.rvs(size=len(time_pred),random_state=20)})
 
     sim_formula = Formula(lhs("y"),
                         [i(),f(["Time"],nk=15)],
@@ -209,7 +219,16 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
 
     # Prepare random smooth sampler
     # Based on Wood (2017, 6.10)
-    V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
+    nH = sim_mat.T @ sim_mat + sim_S
+    Lp, Pr, code = cpp_cholP(nH.tocsc())
+    
+    if code != 0:
+        raise ValueError("Cholesky failed.")
+    
+    LVp = compute_Linv(Lp,1)
+    LV = apply_eigen_perm(Pr,LVp)
+    V = (LV.T @ LV) * sim_sigma
+    #V = scp.sparse.linalg.spsolve(sim_mat.T @ sim_mat + sim_S,scp.sparse.eye((sim_S.shape[1]),format='csc')) * sim_sigma
 
     # Get matrix for x effects
     sim_formula2 = Formula(lhs("y"),
@@ -222,7 +241,7 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     sim_mat2 = sim_model2.get_mmat()
 
     # Get fixed x effects
-    fixed_x = np.array([0,*scp.stats.norm.rvs(size=(5),scale=5,random_state=fixed_seed*6)]).reshape(-1,1)
+    fixed_x = np.array([0,*scp.stats.norm.rvs(size=(5),scale=5,random_state=int(fixed_seed*6))]).reshape(-1,1)
 
     # Get matrix for z effects
     sim_formula3 = Formula(lhs("y"),
@@ -235,7 +254,7 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     sim_mat3 = sim_model3.get_mmat()
 
     # Get fixed z effects
-    fixed_z = np.array([0,*scp.stats.norm.rvs(size=(10),scale=5,random_state=fixed_seed*15)]).reshape(-1,1)
+    fixed_z = np.array([0,*scp.stats.norm.rvs(size=(10),scale=5,random_state=int(fixed_seed*15))]).reshape(-1,1)
 
     # Simulation seed
     np_gen = np.random.default_rng(random_seed)
