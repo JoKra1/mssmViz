@@ -4,6 +4,7 @@ import pandas as pd
 from mssm.models import *
 from mssm.src.python.smooths import convolve_event
 from mssm.src.python.gamm_solvers import cpp_cholP,compute_Linv,apply_eigen_perm
+from mssm.src.python.formula import reparam
 
 ################################## Contains simulations to simulate for GAMM & GAMMLSS models ##################################
 
@@ -332,13 +333,16 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
                                 "series":[f"series_{ic}" for ic in il]})
     return sim_fit_dat,(rand_matrix,sim_mat,sim_mat2,sim_mat3,fixed_time,fixed_x,fixed_z,true_offset)
 
-def sim3(n,scale,c=1,family=Gaussian(),seed=None):
+def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None):
     """
     First Simulation performed by Wood et al., (2016): 4 smooths, 1 is really zero everywhere.
     Based on the original functions of Gu & Whaba (1991).
 
     This is also the first simulation performed by gamSim() - except for the fact that f(x_0) can also be set to
     zero, as was done by Wood et al., (2016)
+
+    Covariates can also be simulated to correlate with each other, following the steps outlined in supplementary materials
+    E of Wood et al., (2016).
 
     References:
 
@@ -350,25 +354,48 @@ def sim3(n,scale,c=1,family=Gaussian(),seed=None):
     :type scale: float
     :param c: Effect strength for x3 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
+    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :type binom_offset: float
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
     :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
     :type family: Family, optional
     """
     np_gen = np.random.default_rng(seed)
 
-    x0 = np_gen.random(n)
-    x1 = np_gen.random(n)
-    x2 = np_gen.random(n)
-    x3 = np_gen.random(n)
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4,4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij,ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(4)],cov=Sigma,size=n,random_state=seed)
+        
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I think that's not
+        # what they mean, since cdf^{-1} = percent wise/quantile function which expects values between 0-1 which
+        # is not the support for z. So I just use the cdf - which I think is what they mean. The resulting marginals
+        # for x are uniform and all variables show the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:,0])
+        x1 = scp.stats.norm.cdf(z[:,1])
+        x2 = scp.stats.norm.cdf(z[:,2])
+        x3 = scp.stats.norm.cdf(z[:,3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
 
     f0 = 2* np.sin(np.pi*x0)
     f1 = np.exp(2*x1)
     f2 = 0.2*np.power(x2,11)*np.power(10*(1-x2),6)+10*np.power(10*x2,3)*np.power(1-x2,10)
     f3 = np.zeros_like(x3)
 
-    mu = c*f0 + f1 + f2 + f3 # eta in truth for non-Gaussian
+    eta = c*f0 + f1 + f2 + f3 # eta in truth for non-Gaussian
 
     if isinstance(family,Gaussian):
-        y = scp.stats.norm.rvs(loc=mu,scale=scale,size=n,random_state=seed)
+        y = scp.stats.norm.rvs(loc=eta,scale=scale,size=n,random_state=seed)
     
     elif isinstance(family,Gamma):
         # Need to transform from mean and scale to \alpha & \beta
@@ -381,29 +408,34 @@ def sim3(n,scale,c=1,family=Gaussian(),seed=None):
         # \beta = 1/\phi/\mu
         # scipy docs, say to set scale to 1/\beta.
         # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
-        mu = family.link.fi(mu)
+        mu = family.link.fi(eta)
         alpha = 1/scale
         beta = alpha/mu  
         y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
     
     elif isinstance(family,Binomial):
-        mu = family.link.fi(mu*0.1)
+        eta += binom_offset
+        mu = family.link.fi(eta*scale)
         y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
 
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
                         "x1":x1,
                         "x2":x2,
-                        "x3":x3})
+                        "x3":x3,
+                        "eta":eta})
     return dat
 
 
-def sim4(n,scale,c=1,family=Gaussian(),seed=None):
+def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None):
     """
     Like ``sim3``, except that a random factor is added - second simulation performed by Wood et al., (2016).
 
     This is also the sixth simulation performed by gamSim() - except for the fact that c is used here to scale the contribution
     of the random factor, as was also done by Wood et al., (2016)
+    
+    Covariates can also be simulated to correlate with each other, following the steps outlined in supplementary materials
+    E of Wood et al., (2016).
 
     References:
 
@@ -415,15 +447,36 @@ def sim4(n,scale,c=1,family=Gaussian(),seed=None):
     :type scale: float
     :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
     :type c: float
+    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :type binom_offset: float
     :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
     :type family: Family, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
     """
     np_gen = np.random.default_rng(seed)
 
-    x0 = np_gen.random(n)
-    x1 = np_gen.random(n)
-    x2 = np_gen.random(n)
-    x3 = np_gen.random(n)
+    if correlate:
+        Sigma = np.zeros((4,4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij,ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(4)],cov=Sigma,size=n,random_state=seed)
+        
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I think that's not
+        # what they mean, since cdf^{-1} = percent wise/quantile function which expects values between 0-1 which
+        # is not the support for z. So I just use the cdf - which I think is what they mean. The resulting marginals
+        # for x are uniform and all variables show the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:,0])
+        x1 = scp.stats.norm.cdf(z[:,1])
+        x2 = scp.stats.norm.cdf(z[:,2])
+        x3 = scp.stats.norm.cdf(z[:,3])
+    else:
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
     x4 = np_gen.integers(low=0,high=40,size=n)
 
     if c > 0:
@@ -437,10 +490,10 @@ def sim4(n,scale,c=1,family=Gaussian(),seed=None):
     f3 = np.zeros_like(x3)
     f4 = rind[x4]
 
-    mu = f0 + f1 + f2 + f3 + f4 # eta in truth for non-Gaussian
+    eta = f0 + f1 + f2 + f3 + f4 # eta in truth for non-Gaussian
 
     if isinstance(family,Gaussian):
-        y = scp.stats.norm.rvs(loc=mu,scale=scale,size=n,random_state=seed)
+        y = scp.stats.norm.rvs(loc=eta,scale=scale,size=n,random_state=seed)
     
     elif isinstance(family,Gamma):
         # Need to transform from mean and scale to \alpha & \beta
@@ -453,13 +506,14 @@ def sim4(n,scale,c=1,family=Gaussian(),seed=None):
         # \beta = 1/\phi/\mu
         # scipy docs, say to set scale to 1/\beta.
         # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
-        mu = family.link.fi(mu)
+        mu = family.link.fi(eta)
         alpha = 1/scale
         beta = alpha/mu  
         y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
     
     elif isinstance(family,Binomial):
-        mu = family.link.fi(mu*0.1)
+        eta += binom_offset
+        mu = family.link.fi(eta*scale)
         y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
 
     dat = pd.DataFrame({"y":y,
@@ -467,7 +521,8 @@ def sim4(n,scale,c=1,family=Gaussian(),seed=None):
                         "x1":x1,
                         "x2":x2,
                         "x3":x3,
-                        "x4":[f"f_{fl}" for fl in x4]})
+                        "x4":[f"f_{fl}" for fl in x4],
+                        "eta":eta})
     return dat
 
 
@@ -671,4 +726,376 @@ def sim8(n,c,family=GAUMLSS([Identity(),LOG()]),seed=None):
     
     dat = pd.DataFrame({"y":y,
                         "x0":x0})
+    return dat
+
+
+def sim9(n,c=1,family=GAUMLSS([Identity(),LOG()]),seed=None):
+    """
+    Like ``sim4``, except for a GAMMLSS model.
+
+    The random intercept to be selected is included in the model of the mean. I.e. the model of the mean is: f0 + f1 + c*f4 For the sd: f2 + f3.
+
+    References:
+
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
+    :type c: float
+    :param family: Distribution for response variable, must be: `GAUMLSS()` or `GAMMALS()`. Defaults to `GAUMLSS([Identity(),LOGb()])`
+    :type family: Family, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    x1 = np_gen.random(n)
+    x2 = np_gen.random(n)
+    x3 = np_gen.random(n)
+    x4 = np_gen.integers(low=0,high=40,size=n)
+
+    if c > 0:
+        rind = scp.stats.norm.rvs(size=40,scale=c,random_state=seed)
+    else:
+        rind = np.zeros(40)
+
+    f0 = 2* np.sin(np.pi*x0)
+    f1 = np.exp(2*x1)
+    f2 = 0.2*np.power(x2,11)*np.power(10*(1-x2),6)+10*np.power(10*x2,3)*np.power(1-x2,10)
+    f3 = np.zeros_like(x3)
+    f4 = rind[x4]
+
+    mu_mean = f0 + f1 + f4
+    mu_sd = 5 + f2 + f3
+
+    mus = [mu_mean,mu_sd]
+
+    if isinstance(family,GAUMLSS):
+        y = scp.stats.norm.rvs(loc=mus[0],scale=mus[1],size=n,random_state=seed)
+    
+    elif isinstance(family,GAMMALS):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+
+        mus[0] += 1
+
+        alpha = 1/mus[1]
+        beta = alpha/mus[0]  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0,
+                        "x1":x1,
+                        "x2":x2,
+                        "x3":x3,
+                        "x4":[f"f_{fl}" for fl in x4]})
+    return dat
+
+
+def sim10(n,c=1,family=GAUMLSS([Identity(),LOG()]),seed=None):
+    """
+    Like ``sim9``, except that c is used to scale effect of f0.
+
+    I.e. the model of the mean is: c*f0 + f1 + f4 For the sd: f2 + f3.
+
+    References:
+
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
+    :type c: float
+    :param family: Distribution for response variable, must be: `GAUMLSS()` or `GAMMALS()`. Defaults to `GAUMLSS([Identity(),LOG()])`
+    :type family: Family, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    x1 = np_gen.random(n)
+    x2 = np_gen.random(n)
+    x3 = np_gen.random(n)
+    x4 = np_gen.integers(low=0,high=40,size=n)
+
+    rind = scp.stats.norm.rvs(size=40,scale=1,random_state=seed)
+
+    f0 = 2* np.sin(np.pi*x0)
+    f1 = np.exp(2*x1)
+    f2 = 0.2*np.power(x2,11)*np.power(10*(1-x2),6)+10*np.power(10*x2,3)*np.power(1-x2,10)
+    f3 = np.zeros_like(x3)
+    f4 = rind[x4]
+
+    mu_mean = c*f0 + f1 + f4
+    mu_sd = 5 + f2 + f3
+
+    mus = [mu_mean,mu_sd]
+
+    if isinstance(family,GAUMLSS):
+        y = scp.stats.norm.rvs(loc=mus[0],scale=mus[1],size=n,random_state=seed)
+    
+    elif isinstance(family,GAMMALS):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+
+        mus[0] += 1
+
+        alpha = 1/mus[1]
+        beta = alpha/mus[0]  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0,
+                        "x1":x1,
+                        "x2":x2,
+                        "x3":x3,
+                        "x4":[f"f_{fl}" for fl in x4]})
+    return dat
+
+
+def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),seed=None):
+    """
+    Like ``sim4``, except that a random smooth of variable `x0` is added - extension of the second simulation performed by Wood et al., (2016).
+
+    c is used here to scale the contribution of the random smooth. Setting it to 0 means the ground truth is maximally wiggly. Setting it to 1
+    means the random smooth is actually a random intercept.
+
+    References:
+
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random intercept
+    :type c: float
+    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :type binom_offset: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
+    :type family: Family, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    x1 = np_gen.random(n)
+    x2 = np_gen.random(n)
+    x3 = np_gen.random(n)
+    x4 = np_gen.integers(low=0,high=n_ranef-1,size=n)
+
+    f0 = 2* np.sin(np.pi*x0)
+    f1 = np.exp(2*x1)
+    f2 = 0.2*np.power(x2,11)*np.power(10*(1-x2),6)+10*np.power(10*x2,3)*np.power(1-x2,10)
+    f3 = np.zeros_like(x3)
+    f4 = np.zeros_like(x0)
+
+    c = max(1e-7,c)
+    
+    # Set up random smooth sampler for smooth of x0
+    # Based on prior assumption discussed by Wood (2017)
+    fs_dat = pd.DataFrame({"x0":x0,
+                        "y":np_gen.random(n)})
+
+    fs_formula = Formula(lhs=lhs("y"),
+                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[PenType.DIFFERENCE],pen_kwargs=[{"m":1}])],
+                            data=fs_dat)
+
+    fs_model = GAMM(fs_formula,Gaussian())
+    fs_model.formula.build_penalties()
+
+    mmat = fs_model.get_mmat()
+    cov = fs_formula.cov_flat
+    S = fs_formula.penalties[0].S_J
+
+    C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(mmat,S,cov,identity=True,scale=False,QR=True)
+    
+    mmat_RP = mmat @ C
+    mmat_RP[:,[-1]] = 1
+    
+    V = (Srp/(c*1e7)).toarray()
+    
+    V[-1,-1] = 1
+    #print(V)
+
+    for l4 in np.unique(x4):
+        if not seed is None:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=seed+l4)
+        else:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=None)
+        #print(sample)
+        if c >= 1: # Random smooth is random intercept
+            sample[:-1] = 0
+
+        fl4 = mmat_RP@sample
+        f4[x4 == l4] = fl4[x4 == l4]
+
+
+    eta = f0 + f1 + f2 + f3 + f4 # eta in truth for non-Gaussian
+
+    if isinstance(family,Gaussian):
+        y = scp.stats.norm.rvs(loc=eta,scale=scale,size=n,random_state=seed)
+    
+    elif isinstance(family,Gamma):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+        mu = family.link.fi(eta)
+        alpha = 1/scale
+        beta = alpha/mu  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+    
+    elif isinstance(family,Binomial):
+        eta += binom_offset
+        mu = family.link.fi(eta*scale)
+        y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
+
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0,
+                        "x1":x1,
+                        "x2":x2,
+                        "x3":x3,
+                        "x4":[f"f_{fl}" for fl in x4],
+                        "eta":eta})
+    return dat
+
+def sim12(n,c=1,n_ranef=40,family=GAUMLSS([Identity(),LOG]),seed=None):
+    """
+    Like ``sim11``, except for GAMLSS models. ``x0``, ``x1``, and ``x4`` impact the mean - the remaining variables impact the scale parameter.
+
+    c is used here to scale the contribution of the random smooth (which is included in the model fo the mean). Setting it to 0 means the ground truth is maximally wiggly. Setting it to 1
+    means the random smooth is actually a random intercept.
+
+    References:
+
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random intercept
+    :type c: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param family: Distribution for response variable, must be: `GAUMLSS()` or `GAMMALS()`. Defaults to `GAUMLSS([Identity(),LOGb()])`
+    :type family: Family, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    x1 = np_gen.random(n)
+    x2 = np_gen.random(n)
+    x3 = np_gen.random(n)
+    x4 = np_gen.integers(low=0,high=n_ranef-1,size=n)
+
+    f0 = 2* np.sin(np.pi*x0)
+    f1 = np.exp(2*x1)
+    f2 = 0.2*np.power(x2,11)*np.power(10*(1-x2),6)+10*np.power(10*x2,3)*np.power(1-x2,10)
+    f3 = np.zeros_like(x3)
+    f4 = np.zeros_like(x0)
+
+    c = max(1e-7,c)
+    
+    # Set up random smooth sampler for smooth of x0
+    # Based on prior assumption discussed by Wood (2017)
+    fs_dat = pd.DataFrame({"x0":x0,
+                        "y":np_gen.random(n)})
+
+    fs_formula = Formula(lhs=lhs("y"),
+                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[PenType.DIFFERENCE],pen_kwargs=[{"m":1}])],
+                            data=fs_dat)
+
+    fs_model = GAMM(fs_formula,Gaussian())
+    fs_model.formula.build_penalties()
+
+    mmat = fs_model.get_mmat()
+    cov = fs_formula.cov_flat
+    S = fs_formula.penalties[0].S_J
+
+    C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(mmat,S,cov,identity=True,scale=False,QR=True)
+    
+    mmat_RP = mmat @ C
+    mmat_RP[:,[-1]] = 1
+    
+    V = (Srp/(c*1e7)).toarray()
+    
+    V[-1,-1] = 1
+    #print(V)
+
+    for l4 in np.unique(x4):
+        if not seed is None:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=seed+l4)
+        else:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=None)
+        #print(sample)
+        if c >= 1: # Random smooth is random intercept
+            sample[:-1] = 0
+
+        fl4 = mmat_RP@sample
+        f4[x4 == l4] = fl4[x4 == l4]
+
+    eta_mean = f0 + f1 + f4
+    eta_sd = f2 + f3
+    
+    eta_sd *= 0.1
+
+    if isinstance(family.links[0],LOG):
+        eta_mean *= 0.5
+
+    mus = [family.links[0].fi(eta_mean),family.links[1].fi(eta_sd)]
+    #print(mus[1])
+
+    if isinstance(family,GAUMLSS):
+        y = scp.stats.norm.rvs(loc=mus[0],scale=mus[1],size=n,random_state=seed)
+    
+    elif isinstance(family,GAMMALS):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+        
+        alpha = 1/mus[1]
+        beta = alpha/mus[0]  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0,
+                        "x1":x1,
+                        "x2":x2,
+                        "x3":x3,
+                        "x4":[f"f_{fl}" for fl in x4],
+                        "eta_mean":eta_mean,
+                        "eta_scale":eta_sd})
     return dat
