@@ -17,8 +17,7 @@ def eval_coverage(model:GAMM or GAMMLSS,pred_dat,dist_par=0,target:float or [flo
     :type dist_par: int, optional
     :param target: Target function. Can either be set to a float (e.g., 0.0 if the target function is believed to be zero everywhere across the domain) or a ``list``/``np.array ``of floats. In the latter case the shape of ``target`` must be a flattened 1D array. defaults to 0.0
     :type target: float or [float], optional
-    :param use: The indices corresponding to the terms that should be used to obtain the prediction or ``None``
-    in which case all terms will be used.
+    :param use: The indices corresponding to the terms that should be used to obtain the prediction or ``None`` in which case all terms will be used.
     :type use: list[int] or None
     :param alpha: The alpha level to use for the standard error calculation. Specifically, 1 - (`alpha`/2) will be used to determine the critical cut-off value according to a N(0,1).
     :type alpha: float, optional
@@ -28,8 +27,7 @@ def eval_coverage(model:GAMM or GAMMLSS,pred_dat,dist_par=0,target:float or [flo
     :type n_ps: int, optional
     :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-function CI.
     :type seed: int or None, optional
-    :return: A tuple with three elements. First is a bool, indicating whether the target function is covered by the CI at every evaluated value of the domain. Second is the (average) coverage across the entire domain.
-    Third is a boolean array indicating for every evaluated value whether the corresponding value of target falls within the CI boundaries.
+    :return: A tuple with three elements. First is a bool, indicating whether the target function is covered by the CI at every evaluated value of the domain. Second is the (average) coverage across the entire domain. Third is a boolean array indicating for every evaluated value whether the corresponding value of target falls within the CI boundaries.
     :rtype: (bool,float,[bool])
     """
 

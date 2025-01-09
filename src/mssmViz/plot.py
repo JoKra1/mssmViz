@@ -192,9 +192,9 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
          ylim=None,prov_cols=None):
     """Helper function to plot all smooth functions estimated by a `GAMM` or `GAMMLSS` model.
 
-    Smooth functions are automatically evaluated over a range of `n_values` spaced equally to cover their entire covariate.
-    For tensor smooths a `n_values`*`n_values` grid is created. Visualizations can be obtained on the scale of the linear predictor (the default), but also
-    on what is often referred to as the 'response'-scale - corresponding to the estimated mean of the RVs modeled by the model.
+    Smooth functions are automatically evaluated over a range of ``n_values`` spaced equally to cover their entire covariate.
+    For tensor smooths a ``n_values*n_values`` grid is created. Visualizations can be obtained on the scale of the linear predictor (the default), but also
+    on what is often referred to as the 'response'-scale - corresponding to the estimated mean of the RVs modeled by the model. Note, that CIs will then only be approximate.
 
     To simply obtain visualizations of all smooth terms estimated, it is sufficient to call::
 
@@ -215,25 +215,23 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
     :type which: [int] or None, optional
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
-    :param n_vals: Number of covariate values over which to evaluate the function. Will be **2 for tensor smooths, defaults to 30
+    :param n_vals: Number of covariate values over which to evaluate the function. Will result in ``n_vals**2`` eval points for tensor smooths, defaults to 30
     :type n_vals: int, optional
-    :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None
-    in which case the CI will be visualized for fixed effects but not for random smooths
+    :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None in which case the CI will be visualized for fixed effects but not for random smooths
     :type ci: bool or None, optional
     :param ci_alpha: The alpha level to use for the standard error calculation. Specifically, 1 - (``alpha``/2) will be used to determine the critical cut-off value according to a N(0,1), defaults to 0.05
     :type ci_alpha: float, optional
     :param use_inter: Whether or not the standard error for CIs should be computed based on just the smooth or based on the smooth + the model intercept - the latter results in better coverage for strongly penalized functions (see Wood, 2017), defaults to False
     :type use_inter: bool, optional
-    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-interval (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
+    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-function (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
     :type whole_interval: bool, optional
-    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to 10000
+    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to 10000
     :type n_ps: int, optional
-    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to None
+    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to None
     :type seed: int, optional
     :param cmp: string corresponding to name for a matplotlib colormap, defaults to None in which case it will be set to 'RdYlBu_r'.
     :type cmp: str or None, optional
-    :param plot_exist: Whether or not an indication of the data distribution should be provided. For univariate smooths setting this to True will add a rug-plot to the
-    bottom, indicating for which covariate values samples existed in the training data. For tensor smooths setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
+    :param plot_exist: Whether or not an indication of the data distribution should be provided. For univariate smooths setting this to True will add a rug-plot to the bottom, indicating for which covariate values samples existed in the training data. For tensor smooths setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
     :type plot_exist: bool, optional
     :param plot_exist_style: Determines the style of the data distribution indication for smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
     :type plot_exist_style: str, optional
@@ -615,7 +613,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     """Plots the model prediction based on (a subset of) the terms included in the model for new data `pred_dat`.
 
     In contrast to `plot`, the predictions are by default transformed to the scale of the mean (i.e., response-scale). If `use=None`, the model
-    will simply use all parametric and regular smooth terms (but no random smooths) for the prediction (i.e., only the "fixed" effects in the model).
+    will simply use all parametric and regular smooth terms (but no random effects) for the prediction (i.e., only the "fixed" effects in the model).
 
     For a GAMM, a simple example of this function would be::
 
@@ -640,8 +638,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     - Wood, S. N. (2017). Generalized Additive Models: An Introduction with R, Second Edition (2nd ed.).
     - Simpson, G. (2016). Simultaneous intervals for smooths revisited.
 
-    :param pred_dat: A pandas DataFrame containing new data for which to make the prediction. Importantly, all variables present in the data used to fit the model also need to be present in this DataFrame. Additionally, factor variables must only include levels
-    also present in the data used to fit the model. If you want to exclude a specific factor from the prediction (for example the factor subject) don't include the terms that involve it in the ``use`` argument.
+    :param pred_dat: A pandas DataFrame containing new data for which to make the prediction. Importantly, all variables present in the data used to fit the model also need to be present in this DataFrame. Additionally, factor variables must only include levels also present in the data used to fit the model. If you want to exclude a specific factor from the prediction (for example the factor subject) don't include the terms that involve it in the ``use`` argument.
     :type pred_dat: pandas.DataFrame
     :param tvars: List of variables to be visualized - must contain one string for predictions visualized as a function of a single variable, two for predictions visualized as a function of two variables
     :type tvars: [str]
@@ -653,21 +650,19 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :type pred_factors: [str]
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
-    :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None
-    in which case the CI will be visualized for fixed effects but not for random smooths
+    :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017) calculation should be computed and used to visualize CIs. The CI is then [``pred`` - ``se``, ``pred`` + ``se``], defaults to None in which case the CI will be visualized for fixed effects but not for random smooths
     :type ci: bool or None, optional
     :param ci_alpha: The alpha level to use for the standard error calculation. Specifically, 1 - (``alpha``/2) will be used to determine the critical cut-off value according to a N(0,1), defaults to 0.05
     :type ci_alpha: float, optional
-    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-interval (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
+    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-function (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
     :type whole_interval: bool, optional
-    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to 10000
+    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to 10000
     :type n_ps: int, optional
-    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to None
+    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to None
     :type seed: int, optional
     :param cmp: string corresponding to name for a matplotlib colormap, defaults to None in which case it will be set to 'RdYlBu_r'.
     :type cmp: str or None, optional
-    :param plot_exist: Whether or not an indication of the data distribution should be provided. For predictions visualized as a function of a single variable setting this to True will add a rug-plot to the
-    bottom, indicating for which covariate values samples existed in the training data. For predictions visualized as a function of a two variables setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
+    :param plot_exist: Whether or not an indication of the data distribution should be provided. For predictions visualized as a function of a single variable setting this to True will add a rug-plot to the bottom, indicating for which covariate values samples existed in the training data. For predictions visualized as a function of a two variables setting this to true will result in a 2d scatter rug plot being added and/or values outside of data limits being hidden, defaults to True
     :type plot_exist: bool, optional
     :param plot_exist_style: Determines the style of the data distribution indication for smooths. Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of data limits, defaults to 'both'
     :type plot_exist_style: str, optional
@@ -681,7 +676,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :type ylim: (float,float), optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen colormap, defaults to 0.7
     :type col: float, optional
-    :param label: A labels to add to the y axis for univariate predictions (or to a legend, if `legend_label`=True) or to the color-bar for tensor predictions, defaults to None
+    :param label: A label to add to the y axis for univariate predictions (or to a legend, if `legend_label`=True) or to the color-bar for tensor predictions, defaults to None
     :type label: str, optional
     :param legend_label: Whether or not any `label` should be added to a legend (don't forget to call :func:`plt.legend()`) or to the y-axis for univariate predicitions, defaults to False (the latter)
     :type legend_label: bool, optional
@@ -824,7 +819,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
 
 def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None = None,dist_par=0,
               ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
-              plot_exist=True,response_scale=True,ax=None,n_vals=30,fig_size=(6/2.54,6/2.54),
+              plot_exist=True,response_scale=True,ax=None,fig_size=(6/2.54,6/2.54),
               ylim=None,col=0.7,label=None,title=None):
     """Plots the expected difference (and CI around this expected difference) between two sets of predictions, evaluated for `pred_dat1` and `pred_dat2`.
 
@@ -870,8 +865,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     - Wood, S. N. (2017). Generalized Additive Models: An Introduction with R, Second Edition (2nd ed.).
     - Simpson, G. (2016). Simultaneous intervals for smooths revisited.
 
-    :param pred_dat1: A pandas DataFrame containing new data for which the prediction is to be compared to the prediction obtained for `pred_dat2`. Importantly, all variables present in the data used to fit the model also need to be present in this DataFrame. Additionally, factor variables must only include levels
-    also present in the data used to fit the model. If you want to exclude a specific factor from the difference prediction (for example the factor subject) don't include the terms that involve it in the ``use`` argument.
+    :param pred_dat1: A pandas DataFrame containing new data for which the prediction is to be compared to the prediction obtained for `pred_dat2`. Importantly, all variables present in the data used to fit the model also need to be present in this DataFrame. Additionally, factor variables must only include levels also present in the data used to fit the model. If you want to exclude a specific factor from the difference prediction (for example the factor subject) don't include the terms that involve it in the ``use`` argument.
     :type pred_dat1: pandas.DataFrame
     :param pred_dat2: Like `pred_dat1` - ideally differing only in the level of a single factor variable or the value of a single continuous variable.
     :type pred_dat2: pandas.DataFrame
@@ -885,11 +879,11 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :type dist_par: int, optional
     :param ci_alpha: The alpha level to use for the standard error calculation. Specifically, 1 - (``alpha``/2) will be used to determine the critical cut-off value according to a N(0,1), defaults to 0.05
     :type ci_alpha: float, optional
-    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-interval (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
+    :param whole_interval: Whether or not to adjuste the point-wise CI to behave like whole-function (based on Wood, 2017; section 6.10.2 and Simpson, 2016), defaults to False
     :type whole_interval: bool, optional
-    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to 10000
+    :param n_ps: How many samples to draw from the posterior in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to 10000
     :type n_ps: int, optional
-    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-interval CI, defaults to None
+    :param seed: Can be used to provide a seed for the posterior sampling step in case the point-wise CI is adjusted to behave like a whole-function CI, defaults to None
     :type seed: int, optional
     :param cmp: string corresponding to name for a matplotlib colormap, defaults to None in which case it will be set to 'RdYlBu_r'.
     :type cmp: str or None, optional
@@ -905,7 +899,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :type ylim: (float,float), optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen colormap, defaults to 0.7
     :type col: float, optional
-    :param label: A list of labels to add to the y axis for univariate predictions or to the color-bar for tensor predictions, defaults to None
+    :param label: A list of label to add to the y axis for univariate predictions or to the color-bar for tensor predictions, defaults to None
     :type label: [str], optional
     :param title: A list of titles to add to each plot, defaults to None
     :type title: [str], optional
@@ -977,7 +971,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
         else:
             link = model.family.link
 
-    __pred_plot(pred,b,tvars,in_limits,x1,x2,x1_exp,True,n_vals,ax,_cmp,col,ylim,link,None)
+    __pred_plot(pred,b,tvars,in_limits,x1,x2,x1_exp,True,len(x1),ax,_cmp,col,ylim,link,None)
 
     if len(tvars) == 2:
         # Credit to Lasse: https://stackoverflow.com/questions/63118710/
@@ -1055,8 +1049,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     :type model: GAMM or GAMMLSS
     :param pred_viz: A list of additional predictor variables included in the model. For each one provided an additional plot will be created with the predictor on the x-axis and the residuals on the y-axis, defaults to None
     :type pred_viz: [str] or None, optional
-    :param resid_type: Type of residual to visualize. For a `model` that is a GAMM this can be "Pearson" or "Deviance" - for a Gaussian GAMM the function will alwasy plot default residuals (y_i - \mu_i) independent of what is provided.
-    For a `model` that is a GAMMLSS, the function will always plot standardized residuals that should approximately behave like deviance ones - except that they can be expected to look like N(0,1) if the model is specified correctly, defaults to "deviance"
+    :param resid_type: Type of residual to visualize. For a `model` that is a GAMM this can be "Pearson" or "Deviance" - for a Gaussian GAMM the function will alwasy plot default residuals (y_i - \mu_i) independent of what is provided. For a `model` that is a GAMMLSS, the function will always plot standardized residuals that should approximately behave like deviance ones - except that they can be expected to look like N(0,1) if the model is specified correctly, defaults to "deviance"
     :type resid_type: str, optional
     :param ar_lag: Up to which lag the auto-correlation function in the residuals should be computed and visualized, defaults to 100
     :type ar_lag: int, optional
