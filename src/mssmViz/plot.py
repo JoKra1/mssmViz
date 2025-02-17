@@ -8,11 +8,12 @@ import copy
 import math
 from .sim import np,pd,scp
 from mssm.models import *
+import warnings
 
 ################################## Contains functions to visualize and validate GAMM & GAMMLSS models ##################################
 
 
-def __get_data_limit_counts(formula,pred_dat,cvars,by):
+def __get_data_limit_counts(formula,pred_dat,cvars,by,by_cont,lim_dist=0.1):
     """Checks for every row in the data used for prediction, whether continuous variables are within training data limits.
      
     Also finds how often each combination of continuous variables exists in trainings data.
@@ -25,6 +26,10 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
     :type cvars: [str]
     :param by: A list of categorical variables associated with a smooth term, i.e., if a smooth has a different shape for different levels of a factor or a prediction.
     :type by: [str]
+    :param by_cont: Optional name of a continuous by variable for a smooth term. Data points for which this covariate is exactly zero are treated as outside of limits.
+    :type by_cont: str or None
+    :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in ``[0,1]``) at which a point is considered too far away from training data. Setting this to 0 means we visualize only points for which there is trainings data, setting this to 1 means visualizing everything. Defaults to 0.1 
+    :type lim_dist: float, optional
     :return: Three vectors + list. First contains bool indicating whether all continuous variables in prediction data row had values within training limits. Second contains all
     unique combinations of continuous variable values in training set. Third contains count for each unique combination in training set. Final list holds names of continuous variables in the order of the columns of the second vector.
     :rtype: tuple
@@ -45,6 +50,12 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
     sort_pred = pred_cov[:,cont_idx]
     sort_train = formula.cov_flat[:,cont_idx]
 
+    by_cont_var = np.ones(sort_train.shape[0])
+
+    if by_cont is not None:
+        by_cont_idx = formula.get_var_map()[by_cont]
+        by_cont_var = formula.cov_flat[:,by_cont_idx]
+
     if len(factor_idx) > 0 and not by is None:
         # Now get all columns corresponding to factor variables so that we can check
         # which rows in the trainings data belong to conditions present in the pred data.
@@ -60,7 +71,10 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
         train_cond_unq_exists = np.array([(train == pred_cond_unique).all(axis=1).any() for train in train_cond_unq])
 
         # Now get part of training cov matching conditions in prediction data
-        sort_train = sort_train[train_cond_unq_exists[train_cond_inv],:]
+        sort_train = sort_train[train_cond_unq_exists[train_cond_inv] & (np.abs(by_cont_var) > 0),:]
+
+    elif by_cont is not None:
+        sort_train = sort_train[np.abs(by_cont_var) > 0,:]
 
     # Check for each combination in continuous prediction columns whether the values are within
     # min and max of the respective trainings columns
@@ -81,7 +95,7 @@ def __get_data_limit_counts(formula,pred_dat,cvars,by):
 
     # Then find minimum distance to any data point for each prediction value
     dist = np.array([min(np.linalg.norm(sort_train_scaled - sort_pred_scaled[predi,:],axis=1)) for predi in range(sort_pred.shape[0])])
-    pred_in_limits[dist > 0.1] = False
+    pred_in_limits[dist > lim_dist] = False
 
     # Now find the counts in the training data for each combination of continuous variables
     train_unq,train_unq_counts = np.unique(sort_train,axis=0,return_counts=True)
@@ -118,7 +132,7 @@ def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,y
     :type _cmp: matplotlib.colormap
     :param col: color to use for univariate plot, float in [0,1]
     :type col: float
-    :param ylim: limits for y-axis
+    :param ylim: limits for y-axis/z-axis
     :type ylim: (float,float)
     :param link: Link function of model.
     :type link: Link
@@ -139,16 +153,17 @@ def __pred_plot(pred,b,tvars,pred_in_limits,x1,x2,x1_exp,ci,n_vals,ax,_cmp,col,y
 
         T_pred = T_pred.T
 
-        halfrange = None
-        if not ylim is None:
-            halfrange = np.max(np.abs(ylim))
+        vmin = ylim[0] if ylim is not None else np.min(T_pred)
+        vmax = ylim[1] if ylim is not None else np.max(T_pred)
+        levels = np.linspace(vmin,vmax,n_vals)
+
         if ci:
             # Mask anything where CI contains zero
-            f1 = ax.contourf(x1,x2,T_pred,levels=n_vals,cmap=_cmp,norm=colors.CenteredNorm(halfrange=halfrange),alpha=0.4)
+            f1 = ax.contourf(x1,x2,T_pred,levels=levels,cmap=_cmp,alpha=0.4)
             T_pred = np.ma.array(T_pred, mask= ((pred + b) > 0) & ((pred - b) < 0))
         
         # Plot everything (outside ci)
-        ff = ax.contourf(x1,x2,T_pred,levels=n_vals,cmap=_cmp,norm=colors.CenteredNorm(halfrange=halfrange))
+        ff = ax.contourf(x1,x2,T_pred,levels=levels,cmap=_cmp)
         ll = ax.contour(x1,x2,T_pred,colors="grey")
 
     elif len(tvars) == 1:
@@ -189,7 +204,7 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
          ci_alpha=0.05,use_inter=False,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
          plot_exist=True,plot_exist_style='both',response_scale=False,axs=None,
          fig_size=(6/2.54,6/2.54),math_font_size = 9,math_font = 'cm',
-         ylim=None,prov_cols=None):
+         ylim=None,prov_cols=None,lim_dist=0.1):
     """Helper function to plot all smooth functions estimated by a `GAMM` or `GAMMLSS` model.
 
     Smooth functions are automatically evaluated over a range of ``n_values`` spaced equally to cover their entire covariate.
@@ -245,10 +260,12 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
     :type math_font_size: int, optional
     :param math_font: Math font to use, defaults to 'cm'
     :type math_font: str, optional
-    :param ylim: Tuple holding y-limits, defaults to None in which case y_limits will be inferred from the predictions made
+    :param ylim: Tuple holding y-limits (z-limits for 2d plots), defaults to None in which case y_limits will be inferred from the predictions made
     :type ylim: (float,float), optional
     :param prov_cols: A float or a list (in case of a smooth with a `by` argument) of floats in [0,1]. Used to get a color for unicariate smooth terms, defaults to None in which case colors will be selected automatically depending on whether the smooth has a `by` keyword or not
     :type prov_cols: float or [float], optional
+    :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in ``[0,1]``) at which a point is considered too far away from training data. Setting this to 0 means we visualize only points for which there is trainings data, setting this to 1 means visualizing everything. Defaults to 0.1 
+    :type lim_dist: float, optional
     :raises ValueError: If fewer matplotlib axis are provided than the number of figures that would be created
     """
 
@@ -313,9 +330,8 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
             x2_exp = []
 
             for x1v in x1:
-                for x2v in x2:
-                    x1_exp.append(x1v)
-                    x2_exp.append(x2v)
+                x1_exp.extend([x1v for _ in range(n_vals)])
+                x2_exp.extend(x2)
             
             pred_dat[tvars[0]] = x1_exp
             pred_dat[tvars[1]] = x2_exp
@@ -342,7 +358,10 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                         else:
                             pred_dat[vari] = [code_factors[vari][0] for _ in range(len(x1_exp))]
                     else:
-                        pred_dat[vari] = [0 for _ in range(len(x1_exp))]
+                        if terms[sti].by_cont is not None and vari == terms[sti].by_cont:
+                            pred_dat[vari] = [1 for _ in range(len(x1_exp))]
+                        else:
+                            pred_dat[vari] = [0 for _ in range(len(x1_exp))]
             
             pred_dat_pd = pd.DataFrame(pred_dat)
             
@@ -375,7 +394,7 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
             # Compute data limits and anything needed for rug plot
             plot_in_limits = None
             if plot_exist:
-                pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,None)
+                pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,None,terms[sti].by_cont,lim_dist)
 
             if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
                 plot_in_limits = pred_in_limits
@@ -392,11 +411,23 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
             __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,0.7 if prov_cols is None else prov_cols,ylim,link,None)
 
             # Specify labels and add rug plots if requested
+            if plot_in_limits is None:
+                vmin = ylim[0] if ylim is not None else np.min(pred)
+                vmax = ylim[1] if ylim is not None else np.max(pred)
+            else:
+                vmin = ylim[0] if ylim is not None else np.min(pred[plot_in_limits])
+                vmax = ylim[1] if ylim is not None else np.max(pred[plot_in_limits])
+
+            ticks = np.linspace(vmin,vmax,5)
+
             if len(tvars) == 1:
-                axs[axi].set_ylabel('$f(' + tvars[0] + ')$',math_fontfamily=math_font,size=math_font_size,fontweight='bold')
+                y_lab = "$f_{" + str(terms[sti].by_cont) + "}" if terms[sti].by_cont is not None else '$f'
+                axs[axi].set_ylabel(y_lab + '(' + tvars[0] + ')$',math_fontfamily=math_font,size=math_font_size,fontweight='bold')
                 axs[axi].set_xlabel(tvars[0],fontweight='bold')
                 axs[axi].spines['top'].set_visible(False)
                 axs[axi].spines['right'].set_visible(False)
+                axs[axi].set_yticks(ticks)
+                axs[axi].set_yticklabels([f"{tick: .2f}" for tick in ticks])
 
                 if plot_exist:
                     
@@ -430,9 +461,12 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 else:
                     cbar = plt.colorbar(axs[axi].collections[0],cax=axins)
 
-                cbar_label = '(' + tvars[0] + ',' + tvars[1] + ')$'
+                cbar.set_ticks(ticks)
 
-                cbar_label = '$f' + cbar_label
+                cbar.ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
+
+                cbar_label_pre = "$f_{" + str(terms[sti].by_cont) + "}" if terms[sti].by_cont is not None else '$f'
+                cbar_label = cbar_label_pre + '(' + tvars[0] + ',' + tvars[1] + ')$'
 
                 cbar.ax.set_ylabel(cbar_label,math_fontfamily=math_font,size=math_font_size)
 
@@ -453,8 +487,12 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 levels = [factor_codes[sti_by][terms[sti].binary[1]]]
 
             # Select a small set of levels for random smooths
-            if isinstance(terms[sti],fs) and len(levels) > 25:
-                levels = np.random.choice(levels,replace=False,size=25)
+            if isinstance(terms[sti],fs):
+                ymin = np.finfo(float).max
+                ymax = np.finfo(float).min
+                
+                if len(levels) > 25:
+                    levels = np.random.choice(levels,replace=False,size=25)
 
             if prov_cols is None:
                 level_cols = np.linspace(0.1,0.9,len(levels))
@@ -484,7 +522,10 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                             else:
                                 pred_level_dat[vari] = [code_factors[vari][0] for _ in range(len(x1_exp))]
                         else:
-                            pred_level_dat[vari] = [0 for _ in range(len(x1_exp))]
+                            if terms[sti].by_cont is not None and vari == terms[sti].by_cont:
+                                pred_level_dat[vari] = [1 for _ in range(len(x1_exp))]
+                            else:
+                                pred_level_dat[vari] = [0 for _ in range(len(x1_exp))]
                 
                 pred_dat_pd = pd.DataFrame(pred_level_dat)
 
@@ -521,7 +562,7 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 # Compute data-limits and prepare rug plots
                 plot_in_limits = None
                 if plot_exist:
-                    pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,[sti_by])
+                    pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,[sti_by],terms[sti].by_cont,lim_dist)
 
                 if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
                     plot_in_limits = pred_in_limits
@@ -537,7 +578,18 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,use_ci,n_vals,axs[axi],_cmp,level_col,ylim,link,None)
                 
                 # And set up labels again + rug plots if requested
-                if not isinstance(terms[sti],fs):
+                if isinstance(terms[sti],fs):
+                    ymin = min(ymin,np.min(pred))
+                    ymax = max(ymax,np.max(pred))
+
+                else:
+                    if plot_in_limits is None:
+                        vmin = ylim[0] if ylim is not None else np.min(pred)
+                        vmax = ylim[1] if ylim is not None else np.max(pred)
+                    else:
+                        vmin = ylim[0] if ylim is not None else np.min(pred[plot_in_limits])
+                        vmax = ylim[1] if ylim is not None else np.max(pred[plot_in_limits])
+                    ticks = np.linspace(vmin,vmax,5)
 
                     if len(tvars) == 1:
                         ax_label = '$f_{' + str(code_factors[sti_by][leveli]) + '}' + '(' + tvars[0] + ')$'
@@ -545,6 +597,8 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                         axs[axi].set_xlabel(tvars[0],fontweight='bold')
                         axs[axi].spines['top'].set_visible(False)
                         axs[axi].spines['right'].set_visible(False)
+                        axs[axi].set_yticks(ticks)
+                        axs[axi].set_yticklabels([f"{tick: .2f}" for tick in ticks])
                         
                         if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
                     
@@ -577,10 +631,16 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                                 bbox_to_anchor = (1.02, 0., 1, 1), bbox_transform = axs[axi].transAxes,
                                 borderpad = 0)
                         
-                        if use_ci:
-                            cbar = plt.colorbar(axs[axi].collections[1],cax=axins)
-                        else:
-                            cbar = plt.colorbar(axs[axi].collections[0],cax=axins)
+                        with warnings.catch_warnings(): # Overflow
+                            warnings.simplefilter("ignore")
+                            if use_ci:
+                                cbar = plt.colorbar(axs[axi].collections[1],cax=axins)
+                            else:
+                                cbar = plt.colorbar(axs[axi].collections[0],cax=axins)
+
+                        cbar.set_ticks(ticks)
+                        
+                        cbar.ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
 
                         cbar_label = '(' + tvars[0] + ',' + tvars[1] + ')$'
 
@@ -591,10 +651,16 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
 
             # Random smooths are all plotted to single figure, so handle labels here. No reason to plot rug
             if isinstance(terms[sti],fs):
+                vmin = ylim[0] if ylim is not None else ymin
+                vmax = ylim[1] if ylim is not None else ymax
+                ticks = np.linspace(vmin,vmax,5)
+                
                 axs[axi].set_ylabel('$f_{' + str(sti_by) + '}(' + tvars[0] + ')$',math_fontfamily=math_font,size=math_font_size,fontweight='bold')
                 axs[axi].set_xlabel(tvars[0],fontweight='bold')
                 axs[axi].spines['top'].set_visible(False)
                 axs[axi].spines['right'].set_visible(False)
+                axs[axi].set_yticks(ticks)
+                axs[axi].set_yticklabels([f"{tick: .2f}" for tick in ticks])
                 axi += 1
     
     if isinstance(model,GAMMLSS):
@@ -609,7 +675,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
                 ci=True,ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,
                 cmp:str or None = None,plot_exist=True,plot_exist_style='both',
                 response_scale=True,ax=None,fig_size=(6/2.54,6/2.54),ylim=None,col=0.7,
-                label=None,legend_label=False,title=None):
+                label=None,legend_label=False,title=None,lim_dist=0.1):
     """Plots the model prediction based on (a subset of) the terms included in the model for new data `pred_dat`.
 
     In contrast to `plot`, the predictions are by default transformed to the scale of the mean (i.e., response-scale). If `use=None`, the model
@@ -672,7 +738,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :type ax: matplotlib.axis, optional
     :param fig_size: Tuple holding figure size, which will be used to determine the size of the figures created if `ax=None`, defaults to (6/2.54,6/2.54)
     :type fig_size: tuple, optional
-    :param ylim: Tuple holding y-limits, defaults to None in which case y_limits will be inferred from the predictions made
+    :param ylim: Tuple holding y-limits (z-limits for 2d plots), defaults to None in which case y_limits will be inferred from the predictions made
     :type ylim: (float,float), optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen colormap, defaults to 0.7
     :type col: float, optional
@@ -682,6 +748,8 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :type legend_label: bool, optional
     :param title: A list of titles to add to each plot, defaults to None
     :type title: [str], optional
+    :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in ``[0,1]``) at which a point is considered too far away from training data. Setting this to 0 means we visualize only points for which there is trainings data, setting this to 1 means visualizing everything. Defaults to 0.1 
+    :type lim_dist: float, optional
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
     
@@ -703,6 +771,11 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     if ax is None:
         fig = plt.figure(figsize=fig_size,layout='constrained')
         ax = fig.add_subplot(1,1,1)
+
+    # Sort data if len(tvars) == 2, before getting variables in next step
+    # to prevent ambiguity.
+    if len(tvars) == 2:
+        pred_dat = pred_dat.sort_values([tvars[0], tvars[1]], ascending=[True, True])
     
     # Set up predictor variables as done in `plot`
     x1_exp = np.array(pred_dat[tvars[0]])
@@ -739,7 +812,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
         if (not pred_factors is None) and len(pred_factors) == 0:
             pred_factors = None
 
-        pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat,tvars,pred_factors)
+        pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat,tvars,pred_factors,None,lim_dist)
 
     if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
         plot_in_limits = pred_in_limits
@@ -759,6 +832,14 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     __pred_plot(pred,b,tvars,plot_in_limits,x1,x2,x1_exp,ci,len(x1),ax,_cmp,col,ylim,link,plot_label)
 
     # Label axes + visualize rug plots if requested
+    if plot_in_limits is None:
+        vmin = ylim[0] if ylim is not None else np.min(pred)
+        vmax = ylim[1] if ylim is not None else np.max(pred)
+    else:
+        vmin = ylim[0] if ylim is not None else np.min(pred[plot_in_limits])
+        vmax = ylim[1] if ylim is not None else np.max(pred[plot_in_limits])
+    ticks = np.linspace(vmin,vmax,5)
+
     if len(tvars) == 2:
        
         if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
@@ -780,6 +861,10 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
         else:
             cbar = plt.colorbar(ax.collections[0],cax=axins)
 
+        cbar.set_ticks(ticks)
+
+        cbar.ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
+
         if not label is None:
             cbar.set_label(label,fontweight='bold')
         else:
@@ -797,6 +882,8 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
         ax.set_xlabel(tvars[0],fontweight='bold')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
 
         if plot_exist and (plot_exist_style == "both" or plot_exist_style == 'rug'):
                     
@@ -820,7 +907,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
 def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None = None,dist_par=0,
               ci_alpha=0.05,whole_interval=False,n_ps=10000,seed=None,cmp:str or None = None,
               plot_exist=True,response_scale=True,ax=None,fig_size=(6/2.54,6/2.54),
-              ylim=None,col=0.7,label=None,title=None):
+              ylim=None,col=0.7,label=None,title=None,lim_dist=0.1):
     """Plots the expected difference (and CI around this expected difference) between two sets of predictions, evaluated for `pred_dat1` and `pred_dat2`.
 
     This function is primarily designed to visualize the expected difference between two levels of a categorical/factor variable. For example, consider the following
@@ -895,7 +982,7 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :type ax: matplotlib.axis, optional
     :param fig_size: Tuple holding figure size, which will be used to determine the size of the figures created if `ax=None`, defaults to (6/2.54,6/2.54)
     :type fig_size: tuple, optional
-    :param ylim: Tuple holding y-limits, defaults to None in which case y_limits will be inferred from the predictions made
+    :param ylim: Tuple holding y-limits (z-limits for 2d plots), defaults to None in which case y_limits will be inferred from the predictions made
     :type ylim: (float,float), optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen colormap, defaults to 0.7
     :type col: float, optional
@@ -903,6 +990,8 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :type label: [str], optional
     :param title: A list of titles to add to each plot, defaults to None
     :type title: [str], optional
+    :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in ``[0,1]``) at which a point is considered too far away from training data. Setting this to 0 means we visualize only points for which there is trainings data, setting this to 1 means visualizing everything. Defaults to 0.1 
+    :type lim_dist: float, optional
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
     
@@ -955,12 +1044,12 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
         pred_factors1 = [var for var in pred_dat1.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
         if len(pred_factors1) == 0:
             pred_factors1 = None
-        pred_in_limits1,train_unq1,train_unq_counts1,cont_vars1 = __get_data_limit_counts(model.formula,pred_dat1,tvars,pred_factors1)
+        pred_in_limits1,train_unq1,train_unq_counts1,cont_vars1 = __get_data_limit_counts(model.formula,pred_dat1,tvars,pred_factors1,None,lim_dist)
 
         pred_factors2 = [var for var in pred_dat2.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
         if len(pred_factors2) == 0:
             pred_factors2 = None
-        pred_in_limits2,train_unq2,train_unq_counts2,cont_vars2 = __get_data_limit_counts(model.formula,pred_dat2,tvars,pred_factors2)
+        pred_in_limits2,train_unq2,train_unq_counts2,cont_vars2 = __get_data_limit_counts(model.formula,pred_dat2,tvars,pred_factors2,None,lim_dist)
 
         in_limits = pred_in_limits1 & pred_in_limits2
     
@@ -973,6 +1062,14 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
 
     __pred_plot(pred,b,tvars,in_limits,x1,x2,x1_exp,True,len(x1),ax,_cmp,col,ylim,link,None)
 
+    if in_limits is None:
+        vmin = ylim[0] if ylim is not None else np.min(pred)
+        vmax = ylim[1] if ylim is not None else np.max(pred)
+    else:
+        vmin = ylim[0] if ylim is not None else np.min(pred[in_limits])
+        vmax = ylim[1] if ylim is not None else np.max(pred[in_limits])
+    ticks = np.linspace(vmin,vmax,5)
+
     if len(tvars) == 2:
         # Credit to Lasse: https://stackoverflow.com/questions/63118710/
         # This made sure that the colorbar height always matches those of the contour plots.
@@ -981,6 +1078,10 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
                 borderpad = 0)
         
         cbar = plt.colorbar(ax.collections[1],cax=axins)
+
+        cbar.set_ticks(ticks)
+
+        cbar.ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
 
         if not label is None:
             cbar.set_label(label,fontweight='bold')
@@ -999,6 +1100,8 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
         ax.set_xlabel(tvars[0],fontweight='bold')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        ax.set_yticks(ticks)
+        ax.set_yticklabels([f"{tick: .2f}" for tick in ticks])
 
         if plot_exist:
             ax.set_xlim(min(x1),max(x1))

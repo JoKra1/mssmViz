@@ -354,11 +354,11 @@ def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
     :type scale: float
     :param c: Effect strength for x3 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv). Defaults to 0.
     :type binom_offset: float
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
     :type correlate: bool
-    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
+    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, `Binomial()`, or `Poisson()`. Defaults to `Gaussian()`
     :type family: Family, optional
     """
     np_gen = np.random.default_rng(seed)
@@ -418,6 +418,11 @@ def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
         mu = family.link.fi(eta*scale)
         y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
 
+    elif isinstance(family,Poisson):
+        eta += binom_offset
+        mu = family.link.fi(eta*scale)
+        y = scp.stats.poisson.rvs(mu, size=n,random_state=seed)
+
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
                         "x1":x1,
@@ -447,9 +452,9 @@ def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
     :type scale: float
     :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv). Defaults to 0.
     :type binom_offset: float
-    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
+    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, `Binomial()`, or `Poisson()`. Defaults to `Gaussian()`
     :type family: Family, optional
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
     :type correlate: bool
@@ -515,6 +520,10 @@ def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
         eta += binom_offset
         mu = family.link.fi(eta*scale)
         y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
+
+    elif isinstance(family,Poisson):
+        mu = family.link.fi(eta*scale)
+        y = scp.stats.poisson.rvs(mu, size=n,random_state=seed)
 
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
