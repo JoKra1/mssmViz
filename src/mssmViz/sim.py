@@ -333,7 +333,7 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
                                 "series":[f"series_{ic}" for ic in il]})
     return sim_fit_dat,(rand_matrix,sim_mat,sim_mat2,sim_mat3,fixed_time,fixed_x,fixed_z,true_offset)
 
-def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None):
+def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),prop_q=0.95,correlate=False,seed=None):
     """
     First Simulation performed by Wood et al., (2016): 4 smooths, 1 is really zero everywhere.
     Based on the original functions of Gu & Whaba (1991).
@@ -354,8 +354,10 @@ def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
     :type scale: float
     :param c: Effect strength for x3 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv). Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
+    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are treated as censored for Propoprtional Hazard model. Defaults to 0.
+    :type prop_q: float
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
     :type correlate: bool
     :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, `Binomial()`, or `Poisson()`. Defaults to `Gaussian()`
@@ -423,16 +425,51 @@ def sim3(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
         mu = family.link.fi(eta*scale)
         y = scp.stats.poisson.rvs(mu, size=n,random_state=seed)
 
+    elif isinstance(family,PropHaz):
+        # Based on example code for mgcv's coxph family available here:
+        # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
+        # Assumes a Weibull proportional Hazard model so baseline hazard function is
+        # simply the Weibull hazard function as defined on Wikipedia, see:
+        # https://en.wikipedia.org/wiki/Weibull_distribution#Cumulative_distribution_function
+        # parameterization below assumes alternative re-parameterization on Wikipedia with
+        # b = \lambda^{-k} and k here is the scale
+
+        # First center eta
+        eta -= np.mean(eta)
+
+        # Now compute b parameter of Weibull
+        b = max(binom_offset,0.01)*np.exp(eta)
+
+        # And sample from Weibull quantile function as also done by numpy, see:
+        # https://numpy.org/doc/2.0/reference/random/generated/numpy.random.weibull.html
+        U = np_gen.random(n)
+
+        y = np.power((-np.log(U)/b),scale)
+
+        # Determine censoring cut-off
+        b_limit = np.min(max(binom_offset,0.01)*np.exp(eta))
+        q_limit = np.power((-np.log(prop_q)/b_limit),scale) 
+
+        # Apply censoring
+        delta = y <= q_limit
+        y[delta == False] = 0
+        delta = 1*delta
+
+
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
                         "x1":x1,
                         "x2":x2,
                         "x3":x3,
                         "eta":eta})
+
+    if isinstance(family,PropHaz):
+        dat["delta"] = delta
+
     return dat
 
 
-def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None):
+def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),prop_q=0.95,correlate=False,seed=None):
     """
     Like ``sim3``, except that a random factor is added - second simulation performed by Wood et al., (2016).
 
@@ -452,8 +489,10 @@ def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
     :type scale: float
     :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv). Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model (5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
+    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are treated as censored for Propoprtional Hazard model. Defaults to 0.
+    :type prop_q: float
     :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, `Binomial()`, or `Poisson()`. Defaults to `Gaussian()`
     :type family: Family, optional
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
@@ -525,6 +564,36 @@ def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
         mu = family.link.fi(eta*scale)
         y = scp.stats.poisson.rvs(mu, size=n,random_state=seed)
 
+    elif isinstance(family,PropHaz):
+        # Based on example code for mgcv's coxph family available here:
+        # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
+        # Assumes a Weibull proportional Hazard model so baseline hazard function is
+        # simply the Weibull hazard function as defined on Wikipedia, see:
+        # https://en.wikipedia.org/wiki/Weibull_distribution#Cumulative_distribution_function
+        # parameterization below assumes alternative re-parameterization on Wikipedia with
+        # b = \lambda^{-k} and k here is the scale
+
+        # First center eta
+        eta -= np.mean(eta)
+
+        # Now compute b parameter of Weibull
+        b = max(binom_offset,0.01)*np.exp(eta)
+
+        # And sample from Weibull quantile function as also done by numpy, see:
+        # https://numpy.org/doc/2.0/reference/random/generated/numpy.random.weibull.html
+        U = np_gen.random(n)
+
+        y = np.power((-np.log(U)/b),scale)
+
+        # Determine censoring cut-off
+        b_limit = np.min(max(binom_offset,0.01)*np.exp(eta))
+        q_limit = np.power((-np.log(prop_q)/b_limit),scale) 
+
+        # Apply censoring
+        delta = y <= q_limit
+        y[delta == False] = 0
+        delta = 1*delta
+
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
                         "x1":x1,
@@ -532,6 +601,10 @@ def sim4(n,scale,c=1,binom_offset=0,family=Gaussian(),correlate=False,seed=None)
                         "x3":x3,
                         "x4":[f"f_{fl}" for fl in x4],
                         "eta":eta})
+    
+    if isinstance(family,PropHaz):
+        dat["delta"] = delta
+
     return dat
 
 
@@ -881,7 +954,7 @@ def sim10(n,c=1,family=GAUMLSS([Identity(),LOG()]),seed=None):
     return dat
 
 
-def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),seed=None):
+def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),prop_q=0.95,seed=None):
     """
     Like ``sim4``, except that a random smooth of variable `x0` is added - extension of the second simulation performed by Wood et al., (2016).
 
@@ -898,8 +971,10 @@ def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),seed=None):
     :type scale: float
     :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random intercept
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv). Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
+    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are treated as censored for Propoprtional Hazard model. Defaults to 0.
+    :type prop_q: float
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
     :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
@@ -986,6 +1061,37 @@ def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),seed=None):
         mu = family.link.fi(eta*scale)
         y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
 
+    elif isinstance(family,PropHaz):
+        # Based on example code for mgcv's coxph family available here:
+        # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
+        # Assumes a Weibull proportional Hazard model so baseline hazard function is
+        # simply the Weibull hazard function as defined on Wikipedia, see:
+        # https://en.wikipedia.org/wiki/Weibull_distribution#Cumulative_distribution_function
+        # parameterization below assumes alternative re-parameterization on Wikipedia with
+        # b = \lambda^{-k} and k here is the scale
+
+        # First center eta
+        eta -= np.mean(eta)
+
+        # Now compute b parameter of Weibull
+        b = max(binom_offset,0.01)*np.exp(eta)
+
+        # And sample from Weibull quantile function as also done by numpy, see:
+        # https://numpy.org/doc/2.0/reference/random/generated/numpy.random.weibull.html
+        U = np_gen.random(n)
+
+        y = np.power((-np.log(U)/b),scale)
+
+        # Determine censoring cut-off
+        b_limit = np.min(max(binom_offset,0.01)*np.exp(eta))
+        q_limit = np.power((-np.log(prop_q)/b_limit),scale) 
+
+        # Apply censoring
+        delta = y <= q_limit
+        y[delta == False] = 0
+        delta = 1*delta
+    
+
     dat = pd.DataFrame({"y":y,
                         "x0":x0,
                         "x1":x1,
@@ -993,6 +1099,10 @@ def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),seed=None):
                         "x3":x3,
                         "x4":[f"f_{fl}" for fl in x4],
                         "eta":eta})
+    
+    if isinstance(family,PropHaz):
+        dat["delta"] = delta
+
     return dat
 
 def sim12(n,c=1,n_ranef=40,family=GAUMLSS([Identity(),LOG]),seed=None):
