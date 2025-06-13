@@ -4,7 +4,7 @@ import pandas as pd
 from mssm.models import *
 from mssm.src.python.smooths import convolve_event
 from mssm.src.python.gamm_solvers import cpp_cholP,compute_Linv,apply_eigen_perm
-from mssm.src.python.formula import reparam
+from mssm.src.python.repara import reparam
 
 ################################## Contains simulations to simulate for GAMM & GAMMLSS models ##################################
 
