@@ -50,7 +50,7 @@ def sim1(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,sim_weak_nonlin = 0.5,random_se
     sim_model.fit(progress_bar=False)
     sim_mat = sim_model.get_mmat()
 
-    sim_S = sim_formula.penalties[0].S_J_emb * sim_lam
+    sim_S = sim_model.overall_penalties[0].S_J_emb * sim_lam
 
     # Get fixed time effects (+intercept)
     fixed1 = np.array([5,*scp.stats.norm.rvs(size=(sim_S.shape[1]-1),scale=5,random_state=fixed_seed)]).reshape(-1,1)
@@ -213,7 +213,7 @@ def sim2(sim_size,sim_sigma = 5.5,sim_lam = 1e-4,set_zero = 1,random_seed=None,f
     sim_model.fit(progress_bar=False)
     sim_mat = sim_model.get_mmat()
 
-    sim_S = sim_formula.penalties[0].S_J_emb * sim_lam
+    sim_S = sim_model.overall_penalties[0].S_J_emb * sim_lam
 
     # Get fixed time effects
     fixed_time = np.array([5,*scp.stats.norm.rvs(size=(sim_S.shape[1]-1),scale=5,random_state=fixed_seed)]).reshape(-1,1)
@@ -1006,11 +1006,11 @@ def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),prop_q=0.95,se
                             data=fs_dat)
 
     fs_model = GAMM(fs_formula,Gaussian())
-    fs_model.formula.build_penalties()
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
-    S = fs_formula.penalties[0].S_J
+    S = fs_pen[0].S_J
 
     C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(mmat,S,cov,identity=True,scale=False,QR=True)
     
@@ -1151,11 +1151,11 @@ def sim12(n,c=1,n_ranef=40,family=GAUMLSS([Identity(),LOG]),seed=None):
                             data=fs_dat)
 
     fs_model = GAMM(fs_formula,Gaussian())
-    fs_model.formula.build_penalties()
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
-    S = fs_formula.penalties[0].S_J
+    S = fs_pen[0].S_J
 
     C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(mmat,S,cov,identity=True,scale=False,QR=True)
     
