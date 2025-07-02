@@ -267,20 +267,19 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
     :raises ValueError: If fewer matplotlib axis are provided than the number of figures that would be created
     """
 
-    if isinstance(model,GAMMLSS):
-        # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
-        model.formula = model.formulas[dist_par]
+    if isinstance(model,GAMM) and dist_par > 0:
+        dist_par = 0
     
     # Get all necessary information from the model formula
-    terms = model.formula.get_terms()
-    stidx = model.formula.get_smooth_term_idx()
+    terms = model.formulas[dist_par].get_terms()
+    stidx = model.formulas[dist_par].get_smooth_term_idx()
 
-    varmap = model.formula.get_var_map()
-    vartypes = model.formula.get_var_types()
-    varmins = model.formula.get_var_mins()
-    varmaxs = model.formula.get_var_maxs()
-    code_factors = model.formula.get_coding_factors()
-    factor_codes = model.formula.get_factor_codings()
+    varmap = model.formulas[dist_par].get_var_map()
+    vartypes = model.formulas[dist_par].get_var_types()
+    varmins = model.formulas[dist_par].get_var_mins()
+    varmaxs = model.formulas[dist_par].get_var_maxs()
+    code_factors = model.formulas[dist_par].get_coding_factors()
+    factor_codes = model.formulas[dist_par].get_factor_codings()
 
     # Default colormap
     if cmp is None:
@@ -351,7 +350,7 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                     continue
                 else:
                     if vartypes[vari] == VarType.FACTOR:
-                        if vari in model.formula.get_subgroup_variables():
+                        if vari in model.formulas[dist_par].get_subgroup_variables():
                             pred_dat[vari.split(":")[0]] = [code_factors[vari][0] for _ in range(len(x1_exp))]
                         else:
                             pred_dat[vari] = [code_factors[vari][0] for _ in range(len(x1_exp))]
@@ -370,35 +369,25 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
             # Add intercept for prediction - remember to subtract it later
             use = [sti]
             if use_inter:
-                if model.formula.coef_names[0] != "Intercept":
+                if model.formulas[dist_par].coef_names[0] != "Intercept":
                     raise ValueError("Model does not have an intercept term at index zero.")
                 use = [0,sti]
 
-            if isinstance(model,GAMMLSS):
-                # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
-                # change this attribute itself.
-                model.formula = None
-                
-                pred,_,b= model.predict(dist_par,use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
-
-                # Set formula again.
-                model.formula = model.formulas[dist_par]
-            else:
-                pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
+            pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
             # Subtract intercept from prediction - it was just used to adjust se
             if use_inter:
                 if isinstance(model,GAMM):
                     _cf,_ = model.get_pars()
                 else:
-                    split_coef = np.split(model.overall_coef,model.coef_split_idx)
+                    split_coef = np.split(model.coef,model.coef_split_idx)
                     _cf = np.ndarray.flatten(split_coef[dist_par])
                 pred -= _cf[0]
 
             # Compute data limits and anything needed for rug plot
             plot_in_limits = None
             if plot_exist:
-                pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,None,terms[sti].by_cont,lim_dist)
+                pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formulas[dist_par],pred_dat_pd,tvars,None,terms[sti].by_cont,lim_dist)
 
             if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
                 plot_in_limits = pred_in_limits
@@ -505,13 +494,13 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                         # Note, placeholder selection must exlcude by/binary variable for which we need to provide the
                         # current level!
                         if vartypes[vari] == VarType.FACTOR and vari == sti_by:
-                            if vari in model.formula.get_subgroup_variables():
+                            if vari in model.formulas[dist_par].get_subgroup_variables():
                                 pred_level_dat[vari.split(":")[0]] = [code_factors[vari][leveli] for _ in range(len(x1_exp))]
                             else:
                                 pred_level_dat[vari] = [code_factors[vari][leveli] for _ in range(len(x1_exp))]
                         elif vartypes[vari] == VarType.FACTOR:
-                            if vari in model.formula.get_subgroup_variables():
-                                if sti_by in model.formula.get_subgroup_variables() and sti_by.split(":")[0] == vari.split(":")[0]:
+                            if vari in model.formulas[dist_par].get_subgroup_variables():
+                                if sti_by in model.formulas[dist_par].get_subgroup_variables() and sti_by.split(":")[0] == vari.split(":")[0]:
                                     continue
                                 
                                 pred_level_dat[vari.split(":")[0]] = [code_factors[vari][0] for _ in range(len(x1_exp))]
@@ -536,35 +525,25 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 # Again, add intercept
                 use = [sti]
                 if use_inter:
-                    if model.formula.coef_names[0] != "Intercept":
+                    if model.formulas[dist_par].coef_names[0] != "Intercept":
                         raise ValueError("Model does not have an intercept term at index zero.")
                     use = [0,sti]
 
-                if isinstance(model,GAMMLSS):
-                    # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
-                    # change this attribute itself.
-                    model.formula = None
-                    
-                    pred,_,b= model.predict(dist_par,use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
-
-                    # Set formula again.
-                    model.formula = model.formulas[dist_par]
-                else:
-                    pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
+                pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
                 # Subtract intercept
                 if use_inter:
                     if isinstance(model,GAMM):
                         _cf,_ = model.get_pars()
                     else:
-                        split_coef = np.split(model.overall_coef,model.coef_split_idx)
+                        split_coef = np.split(model.coef,model.coef_split_idx)
                         _cf = np.ndarray.flatten(split_coef[dist_par])
                     pred -= _cf[0]
 
                 # Compute data-limits and prepare rug plots
                 plot_in_limits = None
                 if plot_exist:
-                    pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat_pd,tvars,[sti_by],terms[sti].by_cont,lim_dist)
+                    pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formulas[dist_par],pred_dat_pd,tvars,[sti_by],terms[sti].by_cont,lim_dist)
 
                 if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
                     plot_in_limits = pred_in_limits
@@ -657,10 +636,6 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 axs[axi].set_yticks(ticks)
                 axs[axi].set_yticklabels([f"{tick: .2f}" for tick in ticks])
                 axi += 1
-    
-    if isinstance(model,GAMMLSS):
-        # Clean up
-        model.formula = None
 
     if figs is not None:
         plt.show()
@@ -747,17 +722,16 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :type lim_dist: float, optional
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
-    
-    if isinstance(model,GAMMLSS):
-        # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
-        model.formula = model.formulas[dist_par]
+
+    if isinstance(model,GAMM) and dist_par > 0:
+        dist_par = 0
     
     # Select only fixed effects if nothing is provided
     if use is None:
-        use = model.formula.get_linear_term_idx()
+        use = model.formulas[dist_par].get_linear_term_idx()
 
-        terms = model.formula.get_terms()
-        for sti in model.formula.get_smooth_term_idx():
+        terms = model.formulas[dist_par].get_terms()
+        for sti in model.formulas[dist_par].get_smooth_term_idx():
             if not isinstance(terms[sti],fs):
                 use.append(sti)
     
@@ -787,27 +761,17 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
         
     _cmp = matplotlib.colormaps[cmp] 
 
-    if isinstance(model,GAMMLSS):
-        # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
-        # change this attribute itself.
-        model.formula = None
-        
-        pred,_,b= model.predict(dist_par,use,pred_dat,ci=ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
-
-        # Set formula again.
-        model.formula = model.formulas[dist_par]
-    else:
-        pred,_,b= model.predict(use,pred_dat,ci=ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
+    pred,_,b= model.predict(use,pred_dat,ci=ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
     # Optionally get data limits
     plot_in_limits = None
     if plot_exist:
         if pred_factors is None:
-            pred_factors = [var for var in pred_dat.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
+            pred_factors = [var for var in pred_dat.columns if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR]
         if (not pred_factors is None) and len(pred_factors) == 0:
             pred_factors = None
 
-        pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formula,pred_dat,tvars,pred_factors,None,lim_dist)
+        pred_in_limits,train_unq,train_unq_counts,cont_vars = __get_data_limit_counts(model.formulas[dist_par],pred_dat,tvars,pred_factors,None,lim_dist)
 
     if plot_exist and (plot_exist_style == "both" or plot_exist_style == "hide"):
         plot_in_limits = pred_in_limits
@@ -815,7 +779,7 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     # By default transform predictions to scale of mean
     link = None
     if response_scale:
-        if isinstance(model,GAMMLSS):
+        if isinstance(model,GAMM) == False:
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -891,10 +855,6 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     
     if not title is None:
         ax.set_title(title,fontweight='bold')
-
-    if isinstance(model,GAMMLSS):
-        # Clean up
-        model.formula = None
 
     if fig is not None:
         plt.show()
@@ -989,16 +949,15 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :type lim_dist: float, optional
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
-    
-    if isinstance(model,GAMMLSS):
-        # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
-        model.formula = model.formulas[dist_par]
+
+    if isinstance(model,GAMM) and dist_par > 0:
+        dist_par = 0
 
     if use is None:
-        use = model.formula.get_linear_term_idx()
+        use = model.formulas[dist_par].get_linear_term_idx()
 
-        terms = model.formula.get_terms()
-        for sti in model.formula.get_smooth_term_idx():
+        terms = model.formulas[dist_par].get_terms()
+        for sti in model.formulas[dist_par].get_smooth_term_idx():
             if not isinstance(terms[sti],fs):
                 use.append(sti)
 
@@ -1022,35 +981,25 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     _cmp = matplotlib.colormaps[cmp] 
 
 
-    if isinstance(model,GAMMLSS):
-        # Reset formula to prevent any problems with the call to predict, since the GAMMLSS class might
-        # change this attribute itself.
-        model.formula = None
-        
-        pred,_,b= model.predict_diff(pred_dat1,pred_dat2,dist_par,use,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
-
-        # Set formula again.
-        model.formula = model.formulas[dist_par]
-    else:
-        pred,b= model.predict_diff(pred_dat1,pred_dat2,use,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed)
+    pred,b= model.predict_diff(pred_dat1,pred_dat2,use,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
     in_limits = None
     if plot_exist:
-        pred_factors1 = [var for var in pred_dat1.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
+        pred_factors1 = [var for var in pred_dat1.columns if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR]
         if len(pred_factors1) == 0:
             pred_factors1 = None
-        pred_in_limits1,train_unq1,train_unq_counts1,cont_vars1 = __get_data_limit_counts(model.formula,pred_dat1,tvars,pred_factors1,None,lim_dist)
+        pred_in_limits1,train_unq1,train_unq_counts1,cont_vars1 = __get_data_limit_counts(model.formulas[dist_par],pred_dat1,tvars,pred_factors1,None,lim_dist)
 
-        pred_factors2 = [var for var in pred_dat2.columns if model.formula.get_var_types()[var] == VarType.FACTOR]
+        pred_factors2 = [var for var in pred_dat2.columns if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR]
         if len(pred_factors2) == 0:
             pred_factors2 = None
-        pred_in_limits2,train_unq2,train_unq_counts2,cont_vars2 = __get_data_limit_counts(model.formula,pred_dat2,tvars,pred_factors2,None,lim_dist)
+        pred_in_limits2,train_unq2,train_unq_counts2,cont_vars2 = __get_data_limit_counts(model.formulas[dist_par],pred_dat2,tvars,pred_factors2,None,lim_dist)
 
         in_limits = pred_in_limits1 & pred_in_limits2
     
     link = None
     if response_scale:
-        if isinstance(model,GAMMLSS):
+        if isinstance(model,GAMM) == False:
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -1103,10 +1052,6 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     
     if not title is None:
         ax.set_title(title,fontweight='bold')
-    
-    if isinstance(model,GAMMLSS):
-        # Clean up
-        model.formula = None
 
     if fig is not None:
         plt.show()
@@ -1165,12 +1110,10 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
 
     if isinstance(model.family,MULNOMLSS):
         raise TypeError("Function does not currently support `Multinomial` models.")
+    
+    dist_par = 0 # By convention, first formula should specify actual observations as dependent variable
 
-    if isinstance(model,GAMMLSS):
-        # Set up everything for that we can plot all smooth terms for distribution parameter `dist_par`.
-        model.formula = model.formulas[0]
-
-    varmap = model.formula.get_var_map()
+    varmap = model.formulas[dist_par].get_var_map()
     n_figures = 4
 
     if pred_viz is not None:
@@ -1185,30 +1128,30 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
         figs = [plt.figure(figsize=fig_size,layout='constrained') for _ in range(n_figures)]
         axs = [fig.add_subplot(1,1,1) for fig in figs]
     
-    if isinstance(model,GAMMLSS) == False:
+    if isinstance(model,GAMM):
         _, sigma = model.get_pars() # sigma = **variance** of residuals!
-        pred = model.pred # The model prediction for the entire data
     else:
         sigma = 1 # Standardized residuals should look like N(0,1)
-        pred = model.overall_preds[0]
+
+    pred = model.preds[0] # The model prediction for the entire data
 
     if response_scale:
-        if isinstance(model,GAMMLSS):
+        if isinstance(model,GAMM) == False:
             pred = model.family.links[0].fi(pred)
         else:
             pred = model.family.link.fi(pred)
 
-    if isinstance(model,GAMMLSS) == False:
+    if isinstance(model,GAMM):
         res = model.get_resid(type=resid_type)
     else:
-        res = model.get_resid() # resid are alwasy standardized for GAMMLSS models
+        res = model.get_resid()
 
-    y = model.formula.y_flat[model.formula.NOT_NA_flat] # The dependent variable after NAs were removed
+    y = model.formulas[0].y_flat[model.formulas[0].NOT_NA_flat] # The dependent variable after NAs were removed
 
     # obs vs. pred plot should always be on response scale
-    if isinstance(model,GAMMLSS) == False and (response_scale == False):
+    if isinstance(model,GAMM) and (response_scale == False):
         axs[0].scatter(model.family.link.fi(pred),y,color="black",facecolor='none')
-    elif isinstance(model,GAMMLSS) and (response_scale == False):
+    elif isinstance(model,GAMM) == False and (response_scale == False):
         axs[0].scatter(model.family.links[0].fi(pred),y,color="black",facecolor='none')
     else:
         axs[0].scatter(pred,y,color="black",facecolor='none')
@@ -1231,7 +1174,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
 
     if pred_viz is not None:
         for pr in pred_viz:
-            pr_val =  model.formula.cov_flat[model.formula.NOT_NA_flat,varmap[pr]]
+            pr_val =  model.formulas[dist_par].cov_flat[model.formulas[dist_par].NOT_NA_flat,varmap[pr]]
             axs[axi].scatter(pr_val,res,color="black",facecolor='none')
             axs[axi].set_xlabel(pr,fontweight='bold')
             axs[axi].set_ylabel("Residuals",fontweight='bold')
@@ -1280,10 +1223,6 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     axs[axi].set_ylabel("ACF",fontweight='bold')
     axs[axi].spines['top'].set_visible(False)
     axs[axi].spines['right'].set_visible(False)
-
-    if isinstance(model,GAMMLSS):
-        # Clean up
-        model.formula = None
 
     if figs is not None:
         plt.show()

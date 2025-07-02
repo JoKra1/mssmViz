@@ -10,7 +10,7 @@ dependencies=["numpy >= 1.24.1",
               "pandas >= 1.5.3",
               "scipy >= 1.15.0",
               "matplotlib >= 3.8.2",
-              "mssm"]
+              "mssm > 1.0.1"]
 name = "mssmViz"
 authors = [
   { name="Joshua Krause", email="jokra001@proton.me" }
