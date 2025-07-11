@@ -6,11 +6,11 @@ from mssm.models import *
 ################################## Contains functions to extract useful information from GAMM & GAMMLSS models ##################################
 
 
-def eval_coverage(model:GAMM or GAMMLSS,pred_dat,dist_par=0,target:float or [float]=0.0,use:[int]=None,alpha=0.05,whole_function=False,n_ps=10000,seed=None):
+def eval_coverage(model:GAMM or GAMMLSS or GSMM,pred_dat,dist_par=0,target:float or [float]=0.0,use:[int]=None,alpha=0.05,whole_function=False,n_ps=10000,seed=None):
     """Evaluate CI coverage of ``target`` function over domain defined by ``pred_dat``.
 
-    :param model: ``GAMM`` or ``GAMMLSS`` model.
-    :type model: GAMM or GAMMLSS
+    :param model: ``GAMM`` or ``GAMMLSS`` or ``GSMM`` model.
+    :type model: GAMM or GAMMLSS or GSMM
     :param pred_dat: ``pandas.DataFrame`` with data used to compute model predictions to be compared against target as well as CI.
     :type pred_dat: pd.Dataframe
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
@@ -32,10 +32,7 @@ def eval_coverage(model:GAMM or GAMMLSS,pred_dat,dist_par=0,target:float or [flo
     """
 
     # Compute model prediction and CI boundaries
-    if isinstance(model,GAMMLSS):
-        pred,_,b = model.predict(dist_par,use,pred_dat,ci=True,whole_interval=whole_function,alpha=alpha,n_ps=n_ps,seed=seed)
-    else:
-        pred,_,b = model.predict(use,pred_dat,ci=True,whole_interval=whole_function,alpha=alpha,n_ps=n_ps,seed=seed)
+    pred,_,b = model.predict(use,pred_dat,ci=True,whole_interval=whole_function,alpha=alpha,n_ps=n_ps,seed=seed,par=dist_par)
 
     # Compute upper and lower boundaries
     UB = pred + b
@@ -55,7 +52,7 @@ def eval_coverage(model:GAMM or GAMMLSS,pred_dat,dist_par=0,target:float or [flo
     return full_coverage,coverage,IN_CI
 
 
-def get_term_coef(model:GAMM or GAMMLSS,which:[int],dist_par=0):
+def get_term_coef(model:GAMM or GAMMLSS or GSMM,which:[int],dist_par=0):
     """Get the coefficients associated with a specific term included in the ``Formula`` of ``model``. Useful to extract for example
     the estimated random intercepts from a random effect model.
 
@@ -63,9 +60,8 @@ def get_term_coef(model:GAMM or GAMMLSS,which:[int],dist_par=0):
     in the returned vector will correspond to the first encoded level of the random factor. Usually, ``mssm`` determines the level-ordering automatically and
     the actual factor-level corresponding to the first encoded level can be determined by inspecting the code-book returned from ``formula.get_factor_codings()``.
 
-
-    :param model: ``GAMM`` or ``GAMMLSS`` model.
-    :type model: GAMM or GAMMLSS
+    :param model: ``GAMM`` or ``GAMMLSS`` or ``GSMM`` model.
+    :type model: GAMM or GAMMLSS or GSMM
     :param which: Index corresponding to the term in the model's formula for which the coefficients should be extracted.
     :type which: [int]
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
@@ -75,14 +71,14 @@ def get_term_coef(model:GAMM or GAMMLSS,which:[int],dist_par=0):
     # Get model-matrix that was used for fitting.
     model_mat = model.get_mmat(use_terms=which)
 
-    if isinstance(model,GAMMLSS):
+    if isinstance(model,GAMM) == False:
         model_mat = model_mat[dist_par]
     
     # Find coefficient indices corresponding to indicated terms:
     coef_idx = model_mat.sum(axis=0) != 0
 
     # Return corresponding coefficients.
-    if isinstance(model,GAMMLSS):
+    if isinstance(model,GAMM) == False:
         split_coef = np.split(model.coef,model.coef_split_idx)
         return split_coef[dist_par][coef_idx]
     else:
