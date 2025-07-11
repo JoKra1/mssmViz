@@ -369,9 +369,9 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
             # Add intercept for prediction - remember to subtract it later
             use = [sti]
             if use_inter:
-                if model.formulas[dist_par].coef_names[0] != "Intercept":
+                if not "Intercept" in model.formulas[dist_par].term_names:
                     raise ValueError("Model does not have an intercept term at index zero.")
-                use = [0,sti]
+                use = [np.argmax(np.array(model.formulas[dist_par].term_names) == "Intercept"),sti]
 
             pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
@@ -382,7 +382,8 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 else:
                     split_coef = np.split(model.coef,model.coef_split_idx)
                     _cf = np.ndarray.flatten(split_coef[dist_par])
-                pred -= _cf[0]
+
+                pred -= _cf[np.array(model.formulas[dist_par].coef_names) == "Intercept"]
 
             # Compute data limits and anything needed for rug plot
             plot_in_limits = None
@@ -525,9 +526,9 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                 # Again, add intercept
                 use = [sti]
                 if use_inter:
-                    if model.formulas[dist_par].coef_names[0] != "Intercept":
+                    if not "Intercept" in model.formulas[dist_par].term_names:
                         raise ValueError("Model does not have an intercept term at index zero.")
-                    use = [0,sti]
+                    use = [np.argmax(np.array(model.formulas[dist_par].term_names) == "Intercept"),sti]
 
                 pred,_,b= model.predict(use,pred_dat_pd,ci=use_ci,alpha=ci_alpha,whole_interval=whole_interval,n_ps=n_ps,seed=seed,par=dist_par)
 
@@ -538,7 +539,8 @@ def plot(model:GAMM or GAMMLSS,which:[int] or None = None, dist_par=0, n_vals:in
                     else:
                         split_coef = np.split(model.coef,model.coef_split_idx)
                         _cf = np.ndarray.flatten(split_coef[dist_par])
-                    pred -= _cf[0]
+
+                    pred -= _cf[np.array(model.formulas[dist_par].coef_names) == "Intercept"]
 
                 # Compute data-limits and prepare rug plots
                 plot_in_limits = None
