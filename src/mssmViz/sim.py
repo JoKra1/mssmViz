@@ -1002,7 +1002,7 @@ def sim11(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),prop_q=0.95,se
                         "y":np_gen.random(n)})
 
     fs_formula = Formula(lhs=lhs("y"),
-                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[PenType.DIFFERENCE],pen_kwargs=[{"m":1}])],
+                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[DifferencePenalty()],pen_kwargs=[{"m":1}])],
                             data=fs_dat)
 
     fs_model = GAMM(fs_formula,Gaussian())
@@ -1147,7 +1147,7 @@ def sim12(n,c=1,n_ranef=40,family=GAUMLSS([Identity(),LOG]),seed=None):
                         "y":np_gen.random(n)})
 
     fs_formula = Formula(lhs=lhs("y"),
-                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[PenType.DIFFERENCE],pen_kwargs=[{"m":1}])],
+                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[DifferencePenalty()],pen_kwargs=[{"m":1}])],
                             data=fs_dat)
 
     fs_model = GAMM(fs_formula,Gaussian())

@@ -362,6 +362,10 @@ def plot(model:GAMM or GAMMLSS or GSMM,which:[int] or None = None, dist_par=0, n
             
             pred_dat_pd = pd.DataFrame(pred_dat)
             
+            # Needed for ar1 model
+            if model.formulas[dist_par].series_id is not None:
+                pred_dat_pd[model.formulas[dist_par].series_id] = "DS1"
+            
             use_ci = ci
             if use_ci is None:
                 use_ci = True
@@ -515,6 +519,10 @@ def plot(model:GAMM or GAMMLSS or GSMM,which:[int] or None = None, dist_par=0, n
                 
                 pred_dat_pd = pd.DataFrame(pred_level_dat)
 
+                # Needed for ar1 model
+                if model.formulas[dist_par].series_id is not None:
+                    pred_dat_pd[model.formulas[dist_par].series_id] = "DS1"
+
                 # CI-decision - exclude factor smooths if not requested explicitly.
                 use_ci = ci
                 if use_ci is None:
@@ -650,7 +658,8 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
                 label=None,legend_label=False,title=None,lim_dist=0.1):
     """Plots the model prediction based on (a subset of) the terms included in the model for new data `pred_dat`.
 
-    In contrast to `plot`, the predictions are by default transformed to the scale of the mean (i.e., response-scale). If `use=None`, the model
+    This function works with all GAMM models, but only supports :class:`mssm.src.python.exp_fam.GAUMLSS` and :class:`mssm.src.python.exp_fam.GAMMALS` `GAMMLSS` models.
+    `GSMM` models are not supported at all. In contrast to `plot`, the predictions are by default transformed to the scale of the mean (i.e., response-scale). If `use=None`, the model
     will simply use all parametric and regular smooth terms (but no random effects) for the prediction (i.e., only the "fixed" effects in the model).
 
     For a GAMM, a simple example of this function would be::
@@ -725,8 +734,11 @@ def plot_fitted(pred_dat,tvars,model:GAMM or GAMMLSS,use:[int] or None = None,pr
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
 
-    if isinstance(model,GAMM) and dist_par > 0:
-        dist_par = 0
+    if isinstance(model,GAMM):
+        if dist_par > 0:
+            dist_par = 0
+    elif (isinstance(model.family,GAUMLSS) == False) and (isinstance(model.family,GAMMALS) == False):
+        raise ValueError("This function only supports GAMMs and Gaussian or Gamma GAMMLSS models.")
     
     # Select only fixed effects if nothing is provided
     if use is None:
@@ -867,6 +879,9 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
               ylim=None,col=0.7,label=None,title=None,lim_dist=0.1):
     """Plots the expected difference (and CI around this expected difference) between two sets of predictions, evaluated for `pred_dat1` and `pred_dat2`.
 
+    This function works with all GAMM models, but only supports :class:`mssm.src.python.exp_fam.GAUMLSS` and :class:`mssm.src.python.exp_fam.GAMMALS` `GAMMLSS` models.
+    `GSMM` models are not supported at all.
+
     This function is primarily designed to visualize the expected difference between two levels of a categorical/factor variable. For example, consider the following
     model below, including a separate smooth of "time" per level of the factor "cond". It is often of interest to visualize *when* in time the two levels of "cond" differ
     from each other in their dependent variable. For this, the difference curve over "time", essentially the smooth of "time" for the first level subtracted from the
@@ -952,8 +967,11 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
 
-    if isinstance(model,GAMM) and dist_par > 0:
-        dist_par = 0
+    if isinstance(model,GAMM):
+        if dist_par > 0:
+            dist_par = 0
+    elif (isinstance(model.family,GAUMLSS) == False) and (isinstance(model.family,GAMMALS) == False):
+        raise ValueError("This function only supports GAMMs and Gaussian or Gamma GAMMLSS models.")
 
     if use is None:
         use = model.formulas[dist_par].get_linear_term_idx()
@@ -1059,8 +1077,9 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
         plt.show()
 
 
-def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="deviance",
-             ar_lag=100,response_scale=False,qq=True,axs=None,fig_size=(6/2.54,6/2.54)):
+def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="deviance",
+             ar_lag=100,response_scale=False,obs=None,qq=True,axs=None,fig_size=(6/2.54,6/2.54),
+             gsmm_kwargs:dict={},gsmm_kwargs_pred:dict|None=None):
     """Plots residual plots useful for validating whether the `model` meets the regression assumptions.
 
     At least four plots will be generated:
@@ -1074,38 +1093,50 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
 
     Which residuals will be visualized depends on the choice of `model` and `resid_type`. If `model` is a `GAMM` model, `resid_type` will determine whether
     "Pearson" or "Deviance" (default) residuals are to be plotted (Wood, 2017). Except, for a Gaussian `GAMM`, in which case the function will always plot
-    the classical residuals, i.e., the difference between model predictions (\mu_i) and observed values (y_i). This ensures that by default and for any `GAMM`
-    we can expect the residuals to look like N independent samples from N(0,sqrt(phi)) - where \phi is the scale parameter of the `GAMM` (\sigma^2 for Gaussian).
-    Hence, we can interpret all the plots in the same way. Note, that residuals for Binomial models will generally not look pretty or like N(0,sqrt(phi)) - but they
+    the classical residuals, i.e., the difference between model predictions (:math:`\\mu_i`) and observed values (y_i). This ensures that by default and for any `GAMM`
+    we can expect the residuals to look like N independent samples from N(0,sqrt(phi)) - where :math:`\\phi` is the scale parameter of the `GAMM` (:math:`\\sigma^2` for Gaussian).
+    Hence, we can interpret all the plots in the same way. Note, that residuals for Binomial models will generally not look pretty or like N(0,sqrt(:math:`\\phi`)) - but they
     should still be reasonably independent.
 
-    If `model` is a `GAMMLSS` model, `resid_type` will be ignored. Instead, the function will always plot standardized residuals that behave a lot like deviance residuals, except for
-    the fact that we also cancel for \phi, so that we can expect the residuals to look like N independent samples from N(0,1). In many cases, the computation of these residuals will
-    thus follow the computation for GAMMs (for a Gaussian GAMMLSS model we can for example simply scale the residual vector by the sigma parameter estimated for each observation to achieve
+    If `model` is a `GAMMLSS` or `GSMM` model, `resid_type` will be ignored. Instead, the function will always plot standardized residuals that behave a lot like deviance residuals, except for
+    the fact that we also cancel for :math:`\\phi`, so that we can expect the residuals to look like N independent samples from N(0,1). In some cases, the computation of these residuals will
+    follow the computation for GAMMs (for a Gaussian GAMMLSS model we can for example simply scale the residual vector by the :math:`\\sigma^2` parameter estimated for each observation to achieve
     the desired distribution result) while for others more complicated standardization might be necessary (see Rigby & Stasinopoulos, 2005) - this will be noted in the docstring of
-    the :func:`resid()` method implemented by each `GAMLSSFamily` family. Again, we have to make an exeception for the Multinomial model (`MULNOMLSS`), which is currently not supported by this function.
+    the ``get_resid()`` method implemented by each `GAMLSSFamily` (`GSMMFamily`) family. Note, that any extra arguments accepted by the family specifc ``get_resid()`` method, can be passed along
+    via the ``gsmm_kwargs`` keyword argument.
+    
+    Again, we have to make an exeception for the Multinomial model (`MULNOMLSS`), which is currently not supported by this function.
+
+    **Note**: For the qq-plot, the reference line is the diagonal obtained by plotting the theoretical quantiles against themselves. We do this, because the theoretical quantiles are drawn from a
+    normal distribution using the estimated scale parameter instead of a standard normal (unless the estimated or known scale parameter is 1 of course). Hence, the diagonal is actually informative.
 
     References:
 
     - Rigby, R. A., & Stasinopoulos, D. M. (2005). Generalized Additive Models for Location, Scale and Shape.
     - Wood, S. N. (2017). Generalized Additive Models: An Introduction with R, Second Edition (2nd ed.).
 
-    :param model: Estimated GAMM or GAMMLSS model, for which the reisdual plots should be generated.
-    :type model: GAMM or GAMMLSS
+    :param model: Estimated GAMM, GAMMLSS, or GSMM model, for which the reisdual plots should be generated.
+    :type model: GAMM | GAMMLSS | GSMM
     :param pred_viz: A list of additional predictor variables included in the model. For each one provided an additional plot will be created with the predictor on the x-axis and the residuals on the y-axis, defaults to None
     :type pred_viz: [str] or None, optional
-    :param resid_type: Type of residual to visualize. For a `model` that is a GAMM this can be "Pearson" or "Deviance" - for a Gaussian GAMM the function will alwasy plot default residuals (y_i - \mu_i) independent of what is provided. For a `model` that is a GAMMLSS, the function will always plot standardized residuals that should approximately behave like deviance ones - except that they can be expected to look like N(0,1) if the model is specified correctly, defaults to "deviance"
+    :param resid_type: Type of residual to visualize. For a `model` that is a GAMM this can be "Pearson" or "Deviance" - for a Gaussian GAMM the function will alwasy plot default residuals :math:`(y_i - \\mu_i)` independent of what is provided. For a `model` that is a GAMMLSS, the function will always plot standardized residuals that should approximately behave like deviance ones - except that they can be expected to look like N(0,1) if the model is specified correctly, defaults to "deviance"
     :type resid_type: str, optional
     :param ar_lag: Up to which lag the auto-correlation function in the residuals should be computed and visualized, defaults to 100
     :type ar_lag: int, optional
     :param response_scale: Whether or not predictions should be visualized on the scale of the mean or not, defaults to False - i.e., predictions are visualized on the scale of the model predictions/linear scale
     :type response_scale: bool, optional
+    :param obs: Whether or not a plot of the observed against predicted values should be created, defaults to ``None`` which means such a plot will be created for GAMMs but not for more general models
+    :type obs: bool|None, optional
     :param qq: Whether or not a qq-plot should be drawn instead of a Histogram, defaults to True
     :type qq: bool, optional
     :param axs: A list of matplotlib.axis on which Figures should be drawn, defaults to None in which case axis will be created by the function and plot.show() will be called at the end
     :type axs: [matplotlib.axis], optional
     :param fig_size: Tuple holding figure size, which will be used to determine the size of the figures created if `axs=None`, defaults to (6/2.54,6/2.54)
     :type fig_size: tuple, optional
+    :param gsmm_kwargs: Any optional key-word arguments to pass along to the call of ``model.get_resid()`. Only has an effect if the model is either a GAMMLSS or a GSMM model.
+    :type gsmm_kwargs: dict, optional
+    :param gsmm_kwargs_pred: An optional second set of key-word arguments to pass to the call of ``model.get_resid()` for the plot of predicted values (and optional predictors when `pred_viz is not None`) against residuals instead of ``gsmm_kwargs``. Useful because some families (e.g., :class:`PropHaz`) might support re-ordering the residual vector, which is desirable for the `acf` plot but not for the plot(s) of predicted values (or predictors) against residuals - since the predicted values/covariates will then no longer be in the same order of the residuals. If this is set to `None` (the default), then it will simply be set to ``gsmm_kwargs`` - ensuring that the same key-word arguments are passed to all calls.
+    :type gsmm_kwargs_pred: dict | None, optional
     :raises ValueError: If fewer matplotlib axis are provided than the number of figures that would be created
     :raises TypeError: If the function is called with a `model` of the `MULNOMLSS` family, which is currently not supported
     """
@@ -1117,6 +1148,18 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
 
     varmap = model.formulas[dist_par].get_var_map()
     n_figures = 4
+
+    if obs is None:
+        if isinstance(model,GAMM):
+            obs = True
+        else:
+            obs = False
+    
+    if gsmm_kwargs_pred is None:
+        gsmm_kwargs_pred = gsmm_kwargs
+    
+    if obs == False:
+        n_figures -= 1
 
     if pred_viz is not None:
         for pr in pred_viz:
@@ -1139,6 +1182,7 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
 
     if response_scale:
         if isinstance(model,GAMM) == False:
+            warnings.warn("Plotting on the response scale might not be sensible for more general models. Consider carefully whether ``response_scale`` should really be set to True.")
             pred = model.family.links[0].fi(pred)
         else:
             pred = model.family.link.fi(pred)
@@ -1146,33 +1190,40 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
     if isinstance(model,GAMM):
         res = model.get_resid(type=resid_type)
     else:
-        res = model.get_resid()
+        res = model.get_resid(**gsmm_kwargs_pred)
 
     y = model.formulas[0].y_flat[model.formulas[0].NOT_NA_flat] # The dependent variable after NAs were removed
 
+    axi = 0
+
     # obs vs. pred plot should always be on response scale
-    if isinstance(model,GAMM) and (response_scale == False):
-        axs[0].scatter(model.family.link.fi(pred),y,color="black",facecolor='none')
-    elif isinstance(model,GAMM) == False and (response_scale == False):
-        axs[0].scatter(model.family.links[0].fi(pred),y,color="black",facecolor='none')
-    else:
-        axs[0].scatter(pred,y,color="black",facecolor='none')
+    if obs:
+        if isinstance(model,GAMM) and (response_scale == False):
+            axs[axi].scatter(model.family.link.fi(pred),y,color="black",facecolor='none')
+        elif isinstance(model,GAMM) == False and (response_scale == False):
+            axs[axi].scatter(model.family.links[0].fi(pred),y,color="black",facecolor='none')
+        else:
+            axs[axi].scatter(pred,y,color="black",facecolor='none')
 
-    axs[0].set_xlabel("Predicted (Mean scale)",fontweight='bold')
-    axs[0].set_ylabel("Observed",fontweight='bold')
-    axs[0].spines['top'].set_visible(False)
-    axs[0].spines['right'].set_visible(False)
+        if response_scale == False:
+            axs[axi].set_xlabel("Predicted (Mean scale)",fontweight='bold')
+        else:
+            axs[axi].set_xlabel("Predicted",fontweight='bold')
 
-    axs[1].scatter(pred,res,color="black",facecolor='none')
+        axs[axi].set_ylabel("Observed",fontweight='bold')
+        axs[axi].spines['top'].set_visible(False)
+        axs[axi].spines['right'].set_visible(False)
+        axi += 1
+
+    axs[axi].scatter(pred,res,color="black",facecolor='none')
     if response_scale == False:
-        axs[1].set_xlabel("Predicted",fontweight='bold')
+        axs[axi].set_xlabel("Predicted",fontweight='bold')
     else:
-        axs[1].set_xlabel("Predicted (Mean scale)",fontweight='bold')
-    axs[1].set_ylabel("Residuals",fontweight='bold')
-    axs[1].spines['top'].set_visible(False)
-    axs[1].spines['right'].set_visible(False)
-
-    axi = 2
+        axs[axi].set_xlabel("Predicted (Mean scale)",fontweight='bold')
+    axs[axi].set_ylabel("Residuals",fontweight='bold')
+    axs[axi].spines['top'].set_visible(False)
+    axs[axi].spines['right'].set_visible(False)
+    axi += 1
 
     if pred_viz is not None:
         for pr in pred_viz:
@@ -1183,10 +1234,14 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
             axs[axi].spines['top'].set_visible(False)
             axs[axi].spines['right'].set_visible(False)
             axi += 1
+    
+    if (isinstance(model,GAMM) == False):
+        # Re-compute residuals for the next set of plots
+        res = model.get_resid(**gsmm_kwargs)
 
     # Histogram for normality
     if qq==False:
-        axs[axi].hist(res,bins=100,density=True,color="black")
+        axs[axi].hist(res,bins=min(100,int(len(res)/2)),density=True,color="black")
         x = np.linspace(scp.stats.norm.ppf(0.0001,scale=math.sqrt(sigma)),
                         scp.stats.norm.ppf(0.9999,scale=math.sqrt(sigma)), 100)
 
@@ -1198,12 +1253,16 @@ def plot_val(model:GAMM or GAMMLSS,pred_viz:[str] or None = None,resid_type="dev
         axs[axi].spines['top'].set_visible(False)
         axs[axi].spines['right'].set_visible(False)
     else:
-        # Get theoretical quantiles
-        tq = scp.stats.norm.ppf(np.linspace(0,1,len(res)),scale=math.sqrt(sigma))
+        # Get theoretical quantiles - use same cum. probs as R
+        qs = np.linspace(5/(len(res)*10),1 - (5/(len(res)*10)),len(res))
+        tq = scp.stats.norm.ppf(qs,scale=math.sqrt(sigma))
+
         # Get empirical quantiles
-        eq = np.quantile(res,np.linspace(0,1,len(res)))
+        eq = np.sort(res,axis=0)
+
         axs[axi].scatter(tq,eq,color="black",facecolor='none')
-        # Add theoretical truth line
+
+        # Add theoretical truth line - simply plot tq against tq, because we use the actual scale estimate to compute quantiles.
         axs[axi].plot(tq,tq,color="black")
 
         axs[axi].set_xlabel("Theoretical Quantiles",fontweight='bold')
