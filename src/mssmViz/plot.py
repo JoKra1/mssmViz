@@ -1077,19 +1077,19 @@ def plot_diff(pred_dat1,pred_dat2,tvars,model: GAMM or GAMMLSS,use:[int] or None
         plt.show()
 
 
-def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="deviance",
-             ar_lag=100,response_scale=False,obs=None,qq=True,axs=None,fig_size=(6/2.54,6/2.54),
+def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="Deviance",
+             ar_lag=100,response_scale=True,obs=None,qq=True,axs=None,fig_size=(6/2.54,6/2.54),
              gsmm_kwargs:dict={},gsmm_kwargs_pred:dict|None=None):
     """Plots residual plots useful for validating whether the `model` meets the regression assumptions.
 
     At least four plots will be generated:
 
     - A scatter-plot: Model predictions (always on response/mean scale) vs. Observations
-    - A scatter-plot: Model predictions (optionally on response/mean scale) vs. Residuals
+    - A scatter-plot: Model predictions vs. Residuals
     - A Histogram/QQ-plot: Residuals (with density overlay of expected distribution)/Quantile-quantile plot for residuals against theoretical quantiles.
     - An ACF plot: Showing the auto-correlation in the residuals at each of `ar_lag` lags
     
-    For each additional predictor included in `pred_viz`, an additional scatter-plot will be generated plotting the predictor values against the residuals.
+    For each additional covariate name included in `pred_viz`, an additional scatter-plot will be generated plotting the covariate values against the residuals.
 
     Which residuals will be visualized depends on the choice of `model` and `resid_type`. If `model` is a `GAMM` model, `resid_type` will determine whether
     "Pearson" or "Deviance" (default) residuals are to be plotted (Wood, 2017). Except, for a Gaussian `GAMM`, in which case the function will always plot
@@ -1123,7 +1123,7 @@ def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="d
     :type resid_type: str, optional
     :param ar_lag: Up to which lag the auto-correlation function in the residuals should be computed and visualized, defaults to 100
     :type ar_lag: int, optional
-    :param response_scale: Whether or not predictions should be visualized on the scale of the mean or not, defaults to False - i.e., predictions are visualized on the scale of the model predictions/linear scale
+    :param response_scale: Whether or not predictions should be visualized on the scale of the mean or not for the plot of predicted vs. observed values, defaults to True - i.e., predictions are visualized on the scale of the mean
     :type response_scale: bool, optional
     :param obs: Whether or not a plot of the observed against predicted values should be created, defaults to ``None`` which means such a plot will be created for GAMMs but not for more general models
     :type obs: bool|None, optional
@@ -1182,7 +1182,6 @@ def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="d
 
     if response_scale:
         if isinstance(model,GAMM) == False:
-            warnings.warn("Plotting on the response scale might not be sensible for more general models. Consider carefully whether ``response_scale`` should really be set to True.")
             pred = model.family.links[0].fi(pred)
         else:
             pred = model.family.link.fi(pred)
@@ -1198,14 +1197,9 @@ def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="d
 
     # obs vs. pred plot should always be on response scale
     if obs:
-        if isinstance(model,GAMM) and (response_scale == False):
-            axs[axi].scatter(model.family.link.fi(pred),y,color="black",facecolor='none')
-        elif isinstance(model,GAMM) == False and (response_scale == False):
-            axs[axi].scatter(model.family.links[0].fi(pred),y,color="black",facecolor='none')
-        else:
-            axs[axi].scatter(pred,y,color="black",facecolor='none')
+        axs[axi].scatter(pred,y,color="black",facecolor='none')
 
-        if response_scale == False:
+        if response_scale:
             axs[axi].set_xlabel("Predicted (Mean scale)",fontweight='bold')
         else:
             axs[axi].set_xlabel("Predicted",fontweight='bold')
@@ -1215,11 +1209,11 @@ def plot_val(model:GAMM | GAMMLSS,pred_viz:list[str] | None = None,resid_type="d
         axs[axi].spines['right'].set_visible(False)
         axi += 1
 
+    # Reset pred to linear scale from here on
+    pred = model.preds[0] # The model prediction for the entire data
+
     axs[axi].scatter(pred,res,color="black",facecolor='none')
-    if response_scale == False:
-        axs[axi].set_xlabel("Predicted",fontweight='bold')
-    else:
-        axs[axi].set_xlabel("Predicted (Mean scale)",fontweight='bold')
+    axs[axi].set_xlabel("Predicted",fontweight='bold')
     axs[axi].set_ylabel("Residuals",fontweight='bold')
     axs[axi].spines['top'].set_visible(False)
     axs[axi].spines['right'].set_visible(False)
