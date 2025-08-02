@@ -1218,3 +1218,160 @@ def sim12(n,c=1,n_ranef=40,family=GAUMLSS([Identity(),LOG]),seed=None):
                         "eta_mean":eta_mean,
                         "eta_scale":eta_sd})
     return dat
+
+def sim13(n,scale,c=1,binom_offset=0,n_ranef=40,family=Gaussian(),prop_q=0.95,seed=None):
+    """
+    Like ``sim11``, but two additional nested factor variables "x5" and "x6 are added, each with two levels. All smooths are
+    functions of x0.
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random intercept
+    :type c: float
+    :param binom_offset: Additive adjustment to log-predictor for Binomial model (5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
+    :type binom_offset: float
+    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are treated as censored for Propoprtional Hazard model. Defaults to 0.
+    :type prop_q: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param family: Distribution for response variable, must be: `Gaussian()`, `Gamma()`, or `Binomial()`. Defaults to `Gaussian()`
+    :type family: Family, optional
+    """
+    np_gen = np.random.default_rng(seed)
+
+    x0 = np_gen.random(n)
+    x4 = np_gen.integers(low=0,high=n_ranef-1,size=n)
+
+    # Create factor variables
+    x5 = [ar for ar in np.array_split(np.tile(["l5.1"],n),4)]
+    x5[1][:] = "l5.2"
+    x5[3][:] = "l5.2"
+    x5 = np.concatenate(x5)
+
+    x6 = [ar for ar in np.array_split(np.tile(["l6.1"],n),2)]
+    x6[1][:] = "l6.2"
+    x6 = np.concatenate(x6)
+
+    # Create different effects of f(0)
+    f0 = np.zeros(n)
+    f0[x5 == "l5.1"] += 2* np.sin(np.pi*x0[x5 == "l5.1"])
+    f0[x5 == "l5.2"] += np.exp(2*x0[x5 == "l5.2"])
+    f0[x6 == "l6.1"] += 0.2*np.power(x0[x6 == "l6.1"],11)*np.power(10*(1-x0[x6 == "l6.1"]),6)+10*np.power(10*x0[x6 == "l6.1"],3)*np.power(1-x0[x6 == "l6.1"],10)
+    f0[x6 == "l6.2"] += np.zeros_like(x0[x6 == "l6.2"])
+
+    f4 = np.zeros_like(x0)
+
+    c = max(1e-7,c)
+    
+    # Set up random smooth sampler for smooth of x0
+    # Based on prior assumption discussed by Wood (2017)
+    fs_dat = pd.DataFrame({"x0":x0,
+                        "y":np_gen.random(n)})
+
+    fs_formula = Formula(lhs=lhs("y"),
+                            terms=[f(["x0"],identifiable=False,nk=10,penalty=[DifferencePenalty()],pen_kwargs=[{"m":1}])],
+                            data=fs_dat)
+
+    fs_model = GAMM(fs_formula,Gaussian())
+    fs_pen = build_penalties(fs_formula)
+
+    mmat = fs_model.get_mmat()
+    cov = fs_formula.cov_flat
+    S = fs_pen[0].S_J
+
+    C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(mmat,S,cov,identity=True,scale=False,QR=True)
+    
+    mmat_RP = mmat @ C
+    mmat_RP[:,[-1]] = 1
+    
+    V = (Srp/(c*1e7)).toarray()
+    
+    V[-1,-1] = 1
+    #print(V)
+
+    for l4 in np.unique(x4):
+        if not seed is None:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=seed+l4)
+        else:
+            sample = scp.stats.multivariate_normal.rvs(mean=[0 for _ in range(Srp.shape[1])],cov=V,size=1,random_state=None)
+        #print(sample)
+        if c >= 1: # Random smooth is random intercept
+            sample[:-1] = 0
+
+        fl4 = mmat_RP@sample
+        f4[x4 == l4] = fl4[x4 == l4]
+
+
+    eta = f0 + f4 # eta in truth for non-Gaussian
+
+    if isinstance(family,Gaussian):
+        y = scp.stats.norm.rvs(loc=eta,scale=scale,size=n,random_state=seed)
+    
+    elif isinstance(family,Gamma):
+        # Need to transform from mean and scale to \alpha & \beta
+        # From Wood (2017), we have that
+        # \phi = 1/\alpha
+        # so \alpha = 1/\phi
+        # From https://en.wikipedia.org/wiki/Gamma_distribution, we have that:
+        # \mu = \alpha/\beta
+        # \mu = 1/\phi/\beta
+        # \beta = 1/\phi/\mu
+        # scipy docs, say to set scale to 1/\beta.
+        # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html
+        mu = family.link.fi(eta)
+        alpha = 1/scale
+        beta = alpha/mu  
+        y = scp.stats.gamma.rvs(a=alpha,scale=(1/beta),size=n,random_state=seed)
+    
+    elif isinstance(family,Binomial):
+        eta += binom_offset
+        mu = family.link.fi(eta*scale)
+        y = scp.stats.binom.rvs(1, mu, size=n,random_state=seed)
+
+    elif isinstance(family,PropHaz):
+        # Based on example code for mgcv's coxph family available here:
+        # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
+        # Assumes a Weibull proportional Hazard model so baseline hazard function is
+        # simply the Weibull hazard function as defined on Wikipedia, see:
+        # https://en.wikipedia.org/wiki/Weibull_distribution#Cumulative_distribution_function
+        # parameterization below assumes alternative re-parameterization on Wikipedia with
+        # b = \lambda^{-k} and k here is the scale
+
+        # First center eta
+        eta -= np.mean(eta)
+
+        # Now compute b parameter of Weibull
+        b = max(binom_offset,0.01)*np.exp(eta)
+
+        # And sample from Weibull quantile function as also done by numpy, see:
+        # https://numpy.org/doc/2.0/reference/random/generated/numpy.random.weibull.html
+        U = np_gen.random(n)
+
+        y = np.power((-np.log(U)/b),scale)
+
+        # Determine censoring cut-off
+        b_limit = np.min(max(binom_offset,0.01)*np.exp(eta))
+        q_limit = np.power((-np.log(prop_q)/b_limit),scale) 
+
+        # Apply censoring
+        delta = y <= q_limit
+        y[delta == False] = 0
+        delta = 1*delta
+    
+
+    dat = pd.DataFrame({"y":y,
+                        "x0":x0,
+                        "x4":[f"f_{fl}" for fl in x4],
+                        "x5":x5,
+                        "x6":x6,
+                        "eta":eta})
+    
+    if isinstance(family,PropHaz):
+        dat["delta"] = delta
+
+    return dat
