@@ -1,13 +1,13 @@
 # mssmViz
 
-![Docs](https://github.com/jokra1/mssm_tutorials/actions/workflows/documentation.yml/badge.svg?branch=main)
+![Docs](https://github.com/jokra1/mssmViz/actions/workflows/documentation.yml/badge.svg?branch=main)
 
 ## Description
 
 > [!NOTE]
 > The tutorial for the ``mssm`` toolbox has moved [here](https://jokra1.github.io/mssm/tutorial.html).
 
-Plotting functions for the Mixed Sparse Smooth Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs), Generalized Additive Mixed Models of Location Scale and Shape (GAMMLSS), and even more general smooth models in the sense defined by [Wood, Pya, & Säfken (2016)](https://doi.org/10.1080/01621459.2016.1180986). **Documentation** for ``mssmViz``  is hosted [here](https://jokra1.github.io/mssm_tutorials/index.html).
+Plotting functions for the Mixed Sparse Smooth Models ([mssm](https://github.com/JoKra1/mssm)) toolbox. ``mssm`` is a toolbox to estimate Generalized Additive Mixed Models (GAMMs), Generalized Additive Mixed Models of Location Scale and Shape (GAMMLSS), and even more general smooth models in the sense defined by [Wood, Pya, & Säfken (2016)](https://doi.org/10.1080/01621459.2016.1180986). **Documentation** for ``mssmViz``  is hosted [here](https://jokra1.github.io/mssmViz/index.html).
 
 ## Installation
 
@@ -28,7 +28,7 @@ pip install mssmViz
 Alternatively, you can clone the repository into a folder of your choice:
 
 ```
-git clone https://github.com/JoKra1/mssm_tutorials.git
+git clone https://github.com/JoKra1/mssmViz.git
 ```
 
 After navigating to the folder into which you cloned this repository, you can then install `mssmViz` plot functions

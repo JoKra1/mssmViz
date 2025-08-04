@@ -52,7 +52,7 @@ def eval_coverage(model:GAMM | GAMMLSS | GSMM,pred_dat:pd.DataFrame,dist_par:int
     return full_coverage,coverage,IN_CI
 
 
-def get_term_coef(model:GAMM | GAMMLSS | GSMM,which:[int],dist_par=0) -> tuple[np.ndarray,np.ndarray]:
+def get_term_coef(model:GAMM | GAMMLSS | GSMM,which:list[int],dist_par=0) -> tuple[np.ndarray,np.ndarray]:
     """Get the coefficients (and their names) associated with a specific term included in the ``Formula`` of ``model``. Useful to extract for example
     the estimated random intercepts from a random effect model.
 
@@ -63,7 +63,7 @@ def get_term_coef(model:GAMM | GAMMLSS | GSMM,which:[int],dist_par=0) -> tuple[n
     :param model: ``GAMM`` or ``GAMMLSS`` or ``GSMM`` model.
     :type model: GAMM | GAMMLSS | GSMM
     :param which: Index corresponding to the term in the model's formula for which the coefficients should be extracted.
-    :type which: [int]
+    :type which: list[int]
     :param dist_par: The index corresponding to the parameter for which to make the prediction (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
     :type dist_par: int, optional
     :return: The extracted coefficients, and their names
