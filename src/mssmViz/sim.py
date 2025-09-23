@@ -1782,8 +1782,10 @@ def sim14(
 ):
     """
     Like ``sim11``, except that there is a non-linear interaction effect of x1,x2 present. Function
-    is the one also used in gamSim function in ``mgcv``. So model of the mean is
-    c*f(x0) + f(x1,x2) + f4 where f4 is the factor smooth (effect of x3 is always zero).
+    is the first example used by Wood (2006; also used in gamSim function in ``mgcv``).
+
+    So model of the mean is c*f(x0) + f(x1,x2) + f4 where f4 is the factor smooth (effect of x3 is
+    always zero).
 
     c is used here to scale the contribution of the random smooth. Setting it to 0 means the ground
     truth is maximally wiggly. Setting it to 1 means the random smooth is actually a random
@@ -1797,6 +1799,9 @@ def sim14(
         via the Newton method.
      - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
         General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
     :param scale: Standard deviation for `family='Gaussian'` else scale parameter
@@ -1851,11 +1856,11 @@ def sim14(
         x3 = np_gen.random(n)
     x4 = np_gen.integers(low=0, high=n_ranef - 1, size=n)
 
-    # Tensor simulation example taken from gamSim:
+    # Tensor simulation example taken from gamSim (originally used by Wood, 2006):
     # https://github.com/cran/mgcv/blob/fb7e8e718377513e78ba6c6bf7e60757fc6a32a9/R/gam.sim.r#L36
     sx = 0.3
     sy = 0.4
-    tf = lambda x, y: (np.power(np.pi, sx) * sy) * (  # noqa: E731
+    tf = lambda x, y: (10 * np.pi * sx * sy) * (  # noqa: E731
         1.2
         * np.exp(
             -np.power(x - 0.2, 2) / np.power(sx, 2)
@@ -2017,8 +2022,8 @@ def sim15(
 ):
     """
     Like :func:`sim3` but with a non-linear interaction of x1 and x2. Function
-    is the one also used in gamSim function in ``mgcv``. So model of the mean
-    is c*f(x0) + f(x1,x2) (effect of x3 is always zero).
+    is the first example used by Wood (2006; also used in gamSim function in ``mgcv``).
+    So model of the mean is c*f(x0) + f(x1,x2) (effect of x3 is always zero).
 
     Covariates can also be simulated to correlate with each other, following the steps outlined in
     supplementary materials E of Wood et al., (2016).
@@ -2028,6 +2033,9 @@ def sim15(
         via the Newton method.
      - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
         General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
     :param scale: Standard deviation for `family='Gaussian'` else scale parameter
@@ -2080,11 +2088,11 @@ def sim15(
         x2 = np_gen.random(n)
         x3 = np_gen.random(n)
 
-    # Tensor simulation example taken from gamSim:
+    # Tensor simulation example taken from gamSim (originally used by Wood, 2006):
     # https://github.com/cran/mgcv/blob/fb7e8e718377513e78ba6c6bf7e60757fc6a32a9/R/gam.sim.r#L36
     sx = 0.3
     sy = 0.4
-    tf = lambda x, y: (np.power(np.pi, sx) * sy) * (  # noqa: E731
+    tf = lambda x, y: (10 * np.pi * sx * sy) * (  # noqa: E731
         1.2
         * np.exp(
             -np.power(x - 0.2, 2) / np.power(sx, 2)
