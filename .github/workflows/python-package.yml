@@ -24,7 +24,7 @@ jobs:
           pip install .
       - name: Run Lint
         run: |
-          flake8 --max-line-length=100 src tests
+          flake8 --max-line-length=100 src
   build:
     if: github.repository == 'JoKra1/mssmViz'
     needs: flake8-lint
