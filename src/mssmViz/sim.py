@@ -1781,9 +1781,9 @@ def sim14(
     correlate=False,
 ):
     """
-    Like ``sim11``, except that there is a non-linear interaction effect of x1,x2 present. Based on
-    the gamSim function in ``mgcv``. So model of the mean is c*f(x0) + f(x1,x2) + f4 where f4 is
-    the factor smooth (effect of x3 is always zero).
+    Like ``sim11``, except that there is a non-linear interaction effect of x1,x2 present. Function
+    is the one also used in gamSim function in ``mgcv``. So model of the mean is
+    c*f(x0) + f(x1,x2) + f4 where f4 is the factor smooth (effect of x3 is always zero).
 
     c is used here to scale the contribution of the random smooth. Setting it to 0 means the ground
     truth is maximally wiggly. Setting it to 1 means the random smooth is actually a random
@@ -2016,7 +2016,8 @@ def sim15(
     correlate=False,
 ):
     """
-    Like :func:`sim3` but with a non-linear interaction of x1 and x2. So model of the mean
+    Like :func:`sim3` but with a non-linear interaction of x1 and x2. Function
+    is the one also used in gamSim function in ``mgcv``. So model of the mean
     is c*f(x0) + f(x1,x2) (effect of x3 is always zero).
 
     Covariates can also be simulated to correlate with each other, following the steps outlined in
