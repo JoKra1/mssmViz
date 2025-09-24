@@ -215,7 +215,7 @@ def __pred_plot(
         if ci:
             # Mask anything where CI contains zero
             ax.contourf(x1, x2, T_pred, levels=levels, cmap=_cmp, alpha=0.4)
-            T_pred = np.ma.array(T_pred, mask=((pred + b) > 0) & ((pred - b) < 0))
+            T_pred = np.ma.array(T_pred.T, mask=((pred + b) > 0) & ((pred - b) < 0)).T
 
         # Plot everything (outside ci)
         ax.contourf(x1, x2, T_pred, levels=levels, cmap=_cmp)
