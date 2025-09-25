@@ -1870,17 +1870,17 @@ def plot_val(
 
     **Note**: the Multinomial model (`MULNOMLSS`) is currently not supported by this function.
 
-    **Note**: For the qq-plot, the reference line is the diagonal obtained by plotting the
-    theoretical quantiles against themselves. We do this, because the theoretical quantiles are
-    drawn from a normal distribution using the estimated scale parameter instead of a standard
-    normal (unless the estimated or known scale parameter is 1 of course). Hence, the diagonal is
-    actually informative.
+    **Note**: For the qq-plot, the reference line is **not** the diagonal obtained by plotting the
+    theoretical quantiles against themselves. Instead, the line is calculated as done in the
+    ``stats`` package in R.
 
     References:
      - Rigby, R. A., & Stasinopoulos, D. M. (2005). Generalized Additive Models for Location, \
         Scale and Shape.
      - Wood, S. N. (2017). Generalized Additive Models: An Introduction with R, Second Edition \
         (2nd ed.).
+     - ``qqnorm`` and ``qqline`` functions in R, see: \
+        https://github.com/wch/r-source/blob/trunk/src/library/stats/R/qqnorm.R
 
     :param model: Estimated GAMM, GAMMLSS, or GSMM model, for which the reisdual plots should be
         generated.
@@ -2060,6 +2060,7 @@ def plot_val(
         axs[axi].spines["right"].set_visible(False)
     else:
         # Get theoretical quantiles - use same cum. probs as R
+        # see: https://github.com/wch/r-source/blob/trunk/src/library/stats/R/qqnorm.R
         qs = np.linspace(5 / (len(res) * 10), 1 - (5 / (len(res) * 10)), len(res))
         tq = scp.stats.norm.ppf(qs, scale=math.sqrt(sigma))
 
@@ -2068,9 +2069,15 @@ def plot_val(
 
         axs[axi].scatter(tq, eq, color="black", facecolor="none")
 
-        # Add theoretical truth line - simply plot tq against tq, because we use the actual scale
-        # estimate to compute quantiles.
-        axs[axi].plot(tq, tq, color="black")
+        # Add theoretical reference line based on quantiles as done in R
+        # see: https://github.com/wch/r-source/blob/trunk/src/library/stats/R/qqnorm.R
+        eqs2 = np.quantile(res, [0.25, 0.75])
+        tq2 = scp.stats.norm.ppf([0.25, 0.75], scale=math.sqrt(sigma))
+
+        slope = (eqs2[1] - eqs2[0]) / (tq2[1] - tq2[0])
+        offset = eqs2[0] - slope * tq2[0]
+
+        axs[axi].axline([0, offset], slope=slope, color="black")
 
         axs[axi].set_xlabel("Theoretical Quantiles", fontweight="bold")
         axs[axi].set_ylabel("Empirical Residual Quantiles", fontweight="bold")
