@@ -2049,8 +2049,6 @@ def sim15(
         Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
-    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
-    :type correlate: bool
     :param family: Distribution for response variable, must be:
         ``Gaussian()``, ``Gamma()``, ``Binomial()``, or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
@@ -2174,5 +2172,100 @@ def sim15(
 
     if isinstance(family, PropHaz):  # noqa: F405
         dat["delta"] = delta
+
+    return dat
+
+
+def sim16(
+    n,
+    c=1,
+    prop_q=0.95,
+    seed=None,
+    correlate=False,
+):
+    """
+    Simulate data from a multivariate normal distribution.
+
+     - mean 1 = c*f(x0)
+     - mean 2 = f(x1) + f(x2)
+     - mean 3 = f(x3)
+
+    Covariates can also be simulated to correlate with each other, following the steps outlined in
+    supplementary materials E of Wood et al., (2016).
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
+     - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1)
+    f2 = 0.2 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = np.zeros_like(x3)
+
+    sigma_obs = np.array([[2, 0.3, -0.5], [0.3, 2, -0.1], [-0.5, -0.1, 2]])
+
+    y = scp.stats.multivariate_normal.rvs(
+        mean=[0 for _ in range(3)], cov=sigma_obs, size=n, random_state=seed + 1
+    )
+
+    y[:, 0] += c * f0
+    y[:, 1] += f1 + f2
+    y[:, 2] += f3
+
+    dat = pd.DataFrame(
+        {
+            "y0": y[:, 0],
+            "y1": y[:, 1],
+            "y2": y[:, 2],
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+        }
+    )
 
     return dat
