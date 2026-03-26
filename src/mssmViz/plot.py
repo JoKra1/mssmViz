@@ -2087,13 +2087,15 @@ def plot_val(
     axi += 1
 
     # Auto-correlation check
-    cc = np.vstack(
+    acf = np.array(
         [
-            res[:-ar_lag, 0],
-            *[res[lag : -(ar_lag - lag), 0] for lag in range(1, ar_lag)],  # noqa: E203
+            1,
+            *[
+                np.corrcoef(res[:-lag, 0], res[lag:, 0])[0, 1]
+                for lag in range(1, ar_lag)
+            ],
         ]
-    ).T
-    acf = [np.corrcoef(cc[:, 0], cc[:, lag])[0, 1] for lag in range(ar_lag)]
+    )
 
     for lg in range(ar_lag):
         axs[axi].plot([lg, lg], [0, acf[lg]], color="black", linewidth=0.5)
