@@ -486,6 +486,7 @@ def sim3(
     family=Gaussian(),  # noqa: F405
     prop_q=0.95,
     correlate=False,
+    dof=40,
     seed=None,
 ):
     """
@@ -518,8 +519,10 @@ def sim3(
     :type prop_q: float
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
     :type correlate: bool
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
     :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
-        ``Binomial()``, ``Poisson()``, or ``PropHaz()``. Defaults to ``Gaussian()``
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -591,6 +594,10 @@ def sim3(
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
 
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
+
     elif isinstance(family, PropHaz):  # noqa: F405
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
@@ -638,6 +645,7 @@ def sim4(
     prop_q=0.95,
     correlate=False,
     seed=None,
+    n_ranef=40,
 ):
     """
     Like ``sim3``, except that a random factor is added - second simulation performed by Wood et
@@ -701,12 +709,12 @@ def sim4(
         x1 = np_gen.random(n)
         x2 = np_gen.random(n)
         x3 = np_gen.random(n)
-    x4 = np_gen.integers(low=0, high=40, size=n)
+    x4 = np_gen.integers(low=0, high=n_ranef, size=n)
 
     if c > 0:
-        rind = scp.stats.norm.rvs(size=40, scale=c, random_state=seed)
+        rind = scp.stats.norm.rvs(size=n_ranef, scale=c, random_state=seed)
     else:
-        rind = np.zeros(40)
+        rind = np.zeros(n_ranef)
 
     f0 = 2 * np.sin(np.pi * x0)
     f1 = np.exp(2 * x1)
@@ -745,6 +753,10 @@ def sim4(
     elif isinstance(family, Poisson):  # noqa: F405
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
+
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
     elif isinstance(family, PropHaz):  # noqa: F405
         # Based on example code for mgcv's coxph family available here:
@@ -1178,6 +1190,7 @@ def sim11(
     n_ranef=40,
     family=Gaussian(),  # noqa: F405
     prop_q=0.95,
+    dof=40,
     seed=None,
     correlate=False,
 ):
@@ -1213,8 +1226,10 @@ def sim11(
     :type prop_q: float
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
-    :param family: Distribution for response variable, must be:
-        ``Gaussian()``, ``Gamma()``, ``Binomial()``, or ``PropHaz()``. Defaults to ``Gaussian()``
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -1342,6 +1357,15 @@ def sim11(
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
+
+    elif isinstance(family, Poisson):  # noqa: F405
+        eta += binom_offset
+        mu = family.link.fi(eta * scale)
+        y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
+
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
     elif isinstance(family, PropHaz):  # noqa: F405
         # Based on example code for mgcv's coxph family available here:
@@ -2017,6 +2041,7 @@ def sim15(
     binom_offset=0,
     family=Gaussian(),  # noqa: F405
     prop_q=0.95,
+    dof=40,
     seed=None,
     correlate=False,
 ):
@@ -2049,8 +2074,10 @@ def sim15(
         Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
-    :param family: Distribution for response variable, must be:
-        ``Gaussian()``, ``Gamma()``, ``Binomial()``, or ``PropHaz()``. Defaults to ``Gaussian()``
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -2138,6 +2165,10 @@ def sim15(
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
 
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
+
     elif isinstance(family, PropHaz):  # noqa: F405
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
@@ -2179,7 +2210,6 @@ def sim15(
 def sim16(
     n,
     c=1,
-    prop_q=0.95,
     seed=None,
     correlate=False,
 ):
@@ -2265,6 +2295,872 @@ def sim16(
             "x1": x1,
             "x2": x2,
             "x3": x3,
+            "eta0": f0,
+            "eta1": f1 + f2,
+            "eta2": f3,
+        }
+    )
+
+    return dat
+
+
+def sim17(n, scale, c=1, seed=None, correlate=False):
+    """
+    Like sim5, but probabilities are all affected by different predictor ("x0"-"x3") and
+    predictors can correlate. Effect of "x0" can be reduced to zero by setting ``c=0``.
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Scale parameter to increase snr
+    :type scale: float
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1) * 0.2
+    f2 = 1e-4 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = 1 * x3 + 0.03 * x3**2
+
+    family = MULNOMLSS(4)  # noqa: F405
+
+    mus = [
+        np.exp(c * f0 * scale),
+        np.exp(f1 * scale),
+        np.exp(f2 * scale),
+        np.exp(f3 * scale),
+    ]
+
+    ps = np.zeros((n, 5))
+
+    for k in range(5):
+        lpk = family.lp(np.zeros(n) + k, *mus)
+        ps[:, k] += lpk
+
+    y = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+
+    dat = pd.DataFrame(
+        {
+            "y": y,
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "eta0": f0,
+            "eta1": f1,
+            "eta2": f2,
+            "eta3": f3,
+        }
+    )
+    return dat
+
+
+def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
+    """
+    Like sim17, but with a random smooth of factor "x4" added to first linear predictor.
+
+    c is used here to scale the contribution of the random smooth. Setting it to 0 means the ground
+    truth is maximally wiggly. Setting it to 1 means the random smooth is actually a random
+    intercept.
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Scale parameter to increase snr
+    :type scale: float
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    x4 = np_gen.integers(low=0, high=n_ranef - 1, size=n)
+    c = max(1e-7, c)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1) * 0.2
+    f2 = 1e-4 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = 1 * x3 + 0.03 * x3**2
+    f4 = np.zeros_like(x0)
+
+    # Set up random smooth sampler for smooth of x0
+    # Based on prior assumption discussed by Wood (2017)
+    fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
+
+    fs_formula = Formula(  # noqa: F405
+        lhs=lhs("y"),  # noqa: F405
+        terms=[
+            f(  # noqa: F405
+                ["x0"],
+                identifiable=False,
+                nk=10,
+                penalty=[DifferencePenalty()],  # noqa: F405
+                pen_kwargs=[{"m": 1}],
+            )
+        ],
+        data=fs_dat,
+    )
+
+    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
+    fs_pen = build_penalties(fs_formula)  # noqa: F405
+
+    mmat = fs_model.get_mmat()
+    cov = fs_formula.cov_flat
+    S = fs_pen[0].S_J
+
+    C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(
+        mmat, S, cov, identity=True, scale=False, QR=True
+    )
+
+    mmat_RP = mmat @ C
+    mmat_RP[:, [-1]] = 1
+
+    V = (Srp / (c * 1e7)).toarray()
+
+    V[-1, -1] = 1
+    # print(V)
+
+    for l4 in np.unique(x4):
+        if seed is not None:
+            sample = scp.stats.multivariate_normal.rvs(
+                mean=[0 for _ in range(Srp.shape[1])],
+                cov=V,
+                size=1,
+                random_state=seed + l4,
+            )
+        else:
+            sample = scp.stats.multivariate_normal.rvs(
+                mean=[0 for _ in range(Srp.shape[1])], cov=V, size=1, random_state=None
+            )
+        # print(sample)
+        if c >= 1:  # Random smooth is random intercept
+            sample[:-1] = 0
+
+        fl4 = mmat_RP @ sample
+        f4[x4 == l4] = fl4[x4 == l4]
+
+    family = MULNOMLSS(4)  # noqa: F405
+
+    mus = [
+        np.exp((f0 + f4) * scale),
+        np.exp(f1 * scale),
+        np.exp(f2 * scale),
+        np.exp(f3 * scale),
+    ]
+
+    ps = np.zeros((n, 5))
+
+    for k in range(5):
+        lpk = family.lp(np.zeros(n) + k, *mus)
+        ps[:, k] += lpk
+
+    y = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+
+    dat = pd.DataFrame(
+        {
+            "y": y,
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "x4": [f"f_{fl}" for fl in x4],
+            "eta0": f0 + f4,
+            "eta1": f1,
+            "eta2": f2,
+            "eta3": f3,
+        }
+    )
+    return dat
+
+
+def sim19(
+    n,
+    scale,
+    c=1,
+    seed=None,
+    correlate=False,
+):
+    """
+    Like :func:`sim17` but with a non-linear interaction of x1 and x2. Function
+    is the first example used by Wood (2006; also used in gamSim function in ``mgcv``).
+    So model of first linear predictor is ``f(x0)``, of second is ``f(x1,x2)``, of third is
+    ``f(x2)`` and of fourth is zero.
+
+    ``c`` can be used to control the effect strength of the non-linear interaction.
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
+     - mgcv source code: gam.sim.r
+
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :type scale: float
+    :param c: Effect strength for f(x1,x2) effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    # Tensor simulation example taken from gamSim (originally used by Wood, 2006):
+    # https://github.com/cran/mgcv/blob/fb7e8e718377513e78ba6c6bf7e60757fc6a32a9/R/gam.sim.r#L36
+    sx = 0.3
+    sy = 0.4
+    tf = lambda x, y: (10 * np.pi * sx * sy) * (  # noqa: E731
+        1.2
+        * np.exp(
+            -np.power(x - 0.2, 2) / np.power(sx, 2)
+            - np.power(y - 0.3, 2) / np.power(sy, 2)
+        )
+        + 0.8
+        * np.exp(
+            -np.power(x - 0.7, 2) / np.power(sx, 2)
+            - np.power(y - 0.8, 2) / np.power(sy, 2)
+        )
+    )
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = tf(x1, x2)
+    f2 = 1e-4 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = np.zeros_like(x3)
+
+    family = MULNOMLSS(4)  # noqa: F405
+
+    mus = [
+        np.exp(f0 * scale),
+        np.exp(c * f1 * scale),
+        np.exp(f2 * scale),
+        np.exp(f3 * scale),
+    ]
+
+    ps = np.zeros((n, 5))
+
+    for k in range(5):
+        lpk = family.lp(np.zeros(n) + k, *mus)
+        ps[:, k] += lpk
+
+    y = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+
+    dat = pd.DataFrame(
+        {
+            "y": y,
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "eta0": f0,
+            "eta1": f1,
+            "eta2": f2,
+            "eta3": f3,
+        }
+    )
+
+    return dat
+
+
+def sim20(
+    n,
+    c=1,
+    seed=None,
+    correlate=False,
+):
+    """
+    Simulate data from a multivariate normal distribution with a non-linear interaction of
+    "x1" and "x2.
+
+     - mean 1 = f(x0)
+     - mean 2 = c*f(x1,x2)
+     - mean 3 = f(x3)
+
+    Covariates can also be simulated to correlate with each other, following the steps outlined in
+    supplementary materials E of Wood et al., (2016).
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
+     - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    # Tensor simulation example taken from gamSim (originally used by Wood, 2006):
+    # https://github.com/cran/mgcv/blob/fb7e8e718377513e78ba6c6bf7e60757fc6a32a9/R/gam.sim.r#L36
+    sx = 0.3
+    sy = 0.4
+    tf = lambda x, y: (10 * np.pi * sx * sy) * (  # noqa: E731
+        1.2
+        * np.exp(
+            -np.power(x - 0.2, 2) / np.power(sx, 2)
+            - np.power(y - 0.3, 2) / np.power(sy, 2)
+        )
+        + 0.8
+        * np.exp(
+            -np.power(x - 0.7, 2) / np.power(sx, 2)
+            - np.power(y - 0.8, 2) / np.power(sy, 2)
+        )
+    )
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = tf(x1, x2)
+    f3 = np.zeros_like(x3)
+
+    sigma_obs = np.array([[2, 0.3, -0.5], [0.3, 2, -0.1], [-0.5, -0.1, 2]])
+
+    y = scp.stats.multivariate_normal.rvs(
+        mean=[0 for _ in range(3)], cov=sigma_obs, size=n, random_state=seed + 1
+    )
+
+    y[:, 0] += f0
+    y[:, 1] += c * f1
+    y[:, 2] += f3
+
+    dat = pd.DataFrame(
+        {
+            "y0": y[:, 0],
+            "y1": y[:, 1],
+            "y2": y[:, 2],
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "eta0": f0,
+            "eta1": f1,
+            "eta2": f3,
+        }
+    )
+
+    return dat
+
+
+def sim21(
+    n,
+    c=1,
+    n_ranef=40,
+    seed=None,
+    correlate=False,
+):
+    """
+    Simulate data from a multivariate normal distribution, with a random smooth of factor "x4" in
+    the model of mean 1
+
+     - mean 1 = f(x0) + c*f(x4)
+     - mean 2 = f(x1) + f(x2)
+     - mean 3 = f(x3)
+
+    c is used here to scale the contribution of the random smooth. Setting it to 0 means the ground
+    truth is maximally wiggly. Setting it to 1 means the random smooth is actually a random
+    intercept.
+
+    Covariates can also be simulated to correlate with each other, following the steps outlined in
+    supplementary materials E of Wood et al., (2016).
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
+     - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    x4 = np_gen.integers(low=0, high=n_ranef - 1, size=n)
+    c = max(1e-7, c)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1)
+    f2 = 0.2 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = np.zeros_like(x3)
+    f4 = np.zeros_like(x4)
+
+    # Set up random smooth sampler for smooth of x0
+    # Based on prior assumption discussed by Wood (2017)
+    fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
+
+    fs_formula = Formula(  # noqa: F405
+        lhs=lhs("y"),  # noqa: F405
+        terms=[
+            f(  # noqa: F405
+                ["x0"],
+                identifiable=False,
+                nk=10,
+                penalty=[DifferencePenalty()],  # noqa: F405
+                pen_kwargs=[{"m": 1}],
+            )
+        ],
+        data=fs_dat,
+    )
+
+    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
+    fs_pen = build_penalties(fs_formula)  # noqa: F405
+
+    mmat = fs_model.get_mmat()
+    cov = fs_formula.cov_flat
+    S = fs_pen[0].S_J
+
+    C, Srp, Drp, IRrp, rms1, rms2, rp_rank = reparam(
+        mmat, S, cov, identity=True, scale=False, QR=True
+    )
+
+    mmat_RP = mmat @ C
+    mmat_RP[:, [-1]] = 1
+
+    V = (Srp / (c * 1e7)).toarray()
+
+    V[-1, -1] = 1
+    # print(V)
+
+    for l4 in np.unique(x4):
+        if seed is not None:
+            sample = scp.stats.multivariate_normal.rvs(
+                mean=[0 for _ in range(Srp.shape[1])],
+                cov=V,
+                size=1,
+                random_state=seed + l4,
+            )
+        else:
+            sample = scp.stats.multivariate_normal.rvs(
+                mean=[0 for _ in range(Srp.shape[1])], cov=V, size=1, random_state=None
+            )
+        # print(sample)
+        if c >= 1:  # Random smooth is random intercept
+            sample[:-1] = 0
+
+        fl4 = mmat_RP @ sample
+        f4[x4 == l4] = fl4[x4 == l4]
+
+    sigma_obs = np.array([[2, 0.3, -0.5], [0.3, 2, -0.1], [-0.5, -0.1, 2]])
+
+    y = scp.stats.multivariate_normal.rvs(
+        mean=[0 for _ in range(3)], cov=sigma_obs, size=n, random_state=seed + 1
+    )
+
+    y[:, 0] += f0 + f4
+    y[:, 1] += f1 + f2
+    y[:, 2] += f3
+
+    dat = pd.DataFrame(
+        {
+            "y0": y[:, 0],
+            "y1": y[:, 1],
+            "y2": y[:, 2],
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "x4": [f"f_{fl}" for fl in x4],
+            "eta0": f0 + f4,
+            "eta1": f1 + f2,
+            "eta2": f3,
+        }
+    )
+
+    return dat
+
+
+def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
+    """
+    Like sim18, but with a random intercept of factor "x4" added to first linear predictor.
+
+    c is used here to scale the variance of the random intercept distribution.
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - mgcv source code: gam.sim.r
+
+    :param scale: Scale parameter to increase snr
+    :type scale: float
+    :param c: Effect strength for random effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    x4 = np_gen.integers(low=0, high=n_ranef, size=n)
+    if c > 0:
+        rind = scp.stats.norm.rvs(size=n_ranef, scale=c, random_state=seed)
+    else:
+        rind = np.zeros(n_ranef)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1) * 0.2
+    f2 = 1e-4 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = 1 * x3 + 0.03 * x3**2
+    f4 = rind[x4]
+
+    family = MULNOMLSS(4)  # noqa: F405
+
+    mus = [
+        np.exp((f0 + f4) * scale),
+        np.exp(f1 * scale),
+        np.exp(f2 * scale),
+        np.exp(f3 * scale),
+    ]
+
+    ps = np.zeros((n, 5))
+
+    for k in range(5):
+        lpk = family.lp(np.zeros(n) + k, *mus)
+        ps[:, k] += lpk
+
+    y = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+
+    dat = pd.DataFrame(
+        {
+            "y": y,
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "x4": [f"f_{fl}" for fl in x4],
+            "eta0": f0 + f4,
+            "eta1": f1,
+            "eta2": f2,
+            "eta3": f3,
+        }
+    )
+    return dat
+
+
+def sim23(
+    n,
+    c=1,
+    n_ranef=40,
+    seed=None,
+    correlate=False,
+):
+    """
+    Simulate data from a multivariate normal distribution, with a random intercept of factor "x4" in
+    the model of mean 1
+
+     - mean 1 = f(x0) + c*ri(x4)
+     - mean 2 = f(x1) + f(x2)
+     - mean 3 = f(x3)
+
+    c is used here to scale the variance of the random intercept distribution.
+
+    Covariates can also be simulated to correlate with each other, following the steps outlined in
+    supplementary materials E of Wood et al., (2016).
+
+    References:
+     - Gu, C. & Whaba, G., (1991). Minimizing GCV/GML scores with multiple smoothing parameters \
+        via the Newton method.
+     - Wood, S. N., Pya, N., Saefken, B., (2016). Smoothing Parameter and Model Selection for \
+        General Smooth Models
+     - Wood, S. N. (2006). Low‐Rank Scale‐Invariant Tensor Product Smooths for Generalized \
+        Additive Mixed Models. Biometrics, 62(4), 1025–1036. \
+        https://doi.org/10.1111/j.1541-0420.2006.00574.x
+     - mgcv source code: gam.sim.r
+
+    :param c: Effect strength for random effect - 0 = No effect, 1 = Maximal effect
+    :type c: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
+    """
+    np_gen = np.random.default_rng(seed)
+
+    if correlate:
+        # Following steps by Wood et al. (2016)
+        Sigma = np.zeros((4, 4)) + 0.9
+
+        for ij in range(4):
+            Sigma[ij, ij] = 1
+
+        z = scp.stats.multivariate_normal.rvs(
+            mean=[0 for _ in range(4)], cov=Sigma, size=n, random_state=seed
+        )
+
+        # I am a bit confused by notation in Wood et al. (2016) - they say x = cdf^{-1}(z) but I
+        # think that's not what they mean, since cdf^{-1} = percent wise/quantile function which
+        # expects values between 0-1 which is not the support for z. So I just use the cdf - which I
+        # think is what they mean. The resulting marginals for x are uniform and all variables show
+        # the expected correlation, so it's probably correct.
+        x0 = scp.stats.norm.cdf(z[:, 0])
+        x1 = scp.stats.norm.cdf(z[:, 1])
+        x2 = scp.stats.norm.cdf(z[:, 2])
+        x3 = scp.stats.norm.cdf(z[:, 3])
+    else:
+
+        x0 = np_gen.random(n)
+        x1 = np_gen.random(n)
+        x2 = np_gen.random(n)
+        x3 = np_gen.random(n)
+
+    x4 = np_gen.integers(low=0, high=n_ranef, size=n)
+    if c > 0:
+        rind = scp.stats.norm.rvs(size=n_ranef, scale=c, random_state=seed)
+    else:
+        rind = np.zeros(n_ranef)
+
+    f0 = 2 * np.sin(np.pi * x0)
+    f1 = np.exp(2 * x1)
+    f2 = 0.2 * np.power(x2, 11) * np.power(10 * (1 - x2), 6) + 10 * np.power(
+        10 * x2, 3
+    ) * np.power(1 - x2, 10)
+    f3 = np.zeros_like(x3)
+    f4 = rind[x4]
+
+    sigma_obs = np.array([[2, 0.3, -0.5], [0.3, 2, -0.1], [-0.5, -0.1, 2]])
+
+    y = scp.stats.multivariate_normal.rvs(
+        mean=[0 for _ in range(3)], cov=sigma_obs, size=n, random_state=seed + 1
+    )
+
+    y[:, 0] += f0 + f4
+    y[:, 1] += f1 + f2
+    y[:, 2] += f3
+
+    dat = pd.DataFrame(
+        {
+            "y0": y[:, 0],
+            "y1": y[:, 1],
+            "y2": y[:, 2],
+            "x0": x0,
+            "x1": x1,
+            "x2": x2,
+            "x3": x3,
+            "x4": [f"f_{fl}" for fl in x4],
+            "eta0": f0 + f4,
+            "eta1": f1 + f2,
+            "eta2": f3,
         }
     )
 

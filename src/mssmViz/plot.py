@@ -1937,9 +1937,6 @@ def plot_val(
         which is currently not supported
     """
 
-    if isinstance(model.family, MULNOMLSS):  # noqa: F405
-        raise TypeError("Function does not currently support `Multinomial` models.")
-
     if isinstance(model, GAMM):  # noqa: F405
         if dist_par > 0:
             dist_par = 0
@@ -1980,11 +1977,11 @@ def plot_val(
     else:
         sigma = 1  # Standardized residuals should look like N(0,1)
 
-    pred = model.preds[0]  # The model prediction for the entire data
+    pred = model.preds[dist_par]  # The model prediction for the entire data
 
     if response_scale:
         if isinstance(model, GAMM) is False:  # noqa: F405
-            pred = model.family.links[0].fi(pred)
+            pred = model.family.links[dist_par].fi(pred)
         else:
             pred = model.family.link.fi(pred)
 
@@ -2014,7 +2011,7 @@ def plot_val(
         axi += 1
 
     # Reset pred to linear scale from here on
-    pred = model.preds[0]  # The model prediction for the entire data
+    pred = model.preds[dist_par]  # The model prediction for the entire data
 
     axs[axi].scatter(pred, res, color="black", facecolor="none")
     axs[axi].set_xlabel("Predicted", fontweight="bold")
