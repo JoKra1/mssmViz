@@ -646,6 +646,7 @@ def sim4(
     correlate=False,
     seed=None,
     n_ranef=40,
+    dof=40,
 ):
     """
     Like ``sim3``, except that a random factor is added - second simulation performed by Wood et
@@ -682,6 +683,8 @@ def sim4(
     :type correlate: bool
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
     """
     np_gen = np.random.default_rng(seed)
 
