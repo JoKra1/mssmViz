@@ -1195,10 +1195,9 @@ def plot_fitted(
         and (isinstance(model.family, GAUMLSS) == False)  # noqa: F405, E712
         and (isinstance(model.family, GAMMALS) == False)  # noqa: F405, E712
     ):
-        raise ValueError(
+        warnings.warn(
             (
-                "This function only supports GAMMs and Gaussian or Gamma GAMMLSS models when "
-                "setting ``response_scale=True``."
+                "Setting ``response_scale=True`` is usually only appropriate for GAMMs or GAMMLSS."
             )
         )
 

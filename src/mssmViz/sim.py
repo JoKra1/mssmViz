@@ -754,6 +754,7 @@ def sim4(
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
     elif isinstance(family, Poisson):  # noqa: F405
+        eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
 
