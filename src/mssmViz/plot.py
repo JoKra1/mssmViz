@@ -4,13 +4,20 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import copy
 import math
 from .sim import np, pd, scp
-from mssm.models import *  # noqa
+from mssm.models import VarType, GAMM, GAMMLSS, GSMM, fs, GAUMLSS, GAMMALS, Formula
 import warnings
 
 ############ Contains functions to visualize and validate GAMM & GAMMLSS models ############ # noqa
 
 
-def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1):
+def __get_data_limit_counts(
+    formula: Formula,
+    pred_dat: pd.DataFrame,
+    cvars: list[str],
+    by: list[str] | None,
+    by_cont: str | None,
+    lim_dist=0.1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """Checks for every row in the data used for prediction, whether continuous variables are within
     training data limits.
 
@@ -21,10 +28,10 @@ def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1)
     :param pred_dat: pandas DataFrame holding prediction data.
     :type pred_dat: pandas.Dataframe
     :param cvars: A list of the continuous variables to take into account.
-    :type cvars: [str]
+    :type cvars: list[str]
     :param by: A list of categorical variables associated with a smooth term, i.e., if a smooth has
         a different shape for different levels of a factor or a prediction.
-    :type by: [str]
+    :type by: list[str] | None
     :param by_cont: Optional name of a continuous by variable for a smooth term. Data points for
         which this covariate is exactly zero are treated as outside of limits.
     :type by_cont: str or None
@@ -33,15 +40,15 @@ def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1)
         0 means we visualize only points for which there is trainings data, setting this to 1 means
         visualizing everything. Defaults to 0.1
     :type lim_dist: float, optional
-    :return: Three vectors + list. First contains bool indicating whether all continuous variables
-        in prediction data row had values within training limits. Second contains all unique
-        combinations of continuous variable values in training set. Third contains count for each
-        unique combination in training set. Final list holds names of continuous variables in the
-        order of the columns of the second vector.
-    :rtype: tuple
+    :return: Three numpy arrays and one list. First contains bool indicating whether all continuous
+        variables in prediction data row had values within training limits. Second contains all
+        unique combinations of continuous variable values in training set. Third contains count for
+        each unique combination in training set. Final list holds names of continuous variables in
+        the order of the columns of the second vector.
+    :rtype: tuple[np.ndaraay,np.ndarray,np.ndarray,list[str]]
     """
 
-    _, pred_cov, _, _, _, _, _ = formula.encode_data(pred_dat, prediction=True)
+    _, pred_cov, _, _, _, _, _, _ = formula.encode_data(pred_dat, prediction=True)
 
     # Find continuous predictors and categorical ones
 
@@ -50,12 +57,12 @@ def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1)
     cont_idx = [
         formula.get_var_map()[var]
         for var in pred_cols
-        if formula.get_var_types()[var] == VarType.NUMERIC and var in cvars  # noqa: F405
+        if formula.get_var_types()[var] == VarType.NUMERIC and var in cvars
     ]
     cont_vars = [
         var
         for var in pred_cols
-        if formula.get_var_types()[var] == VarType.NUMERIC and var in cvars  # noqa: F405
+        if formula.get_var_types()[var] == VarType.NUMERIC and var in cvars
     ]
     factor_idx = []
 
@@ -63,7 +70,7 @@ def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1)
         factor_idx = [
             formula.get_var_map()[var]
             for var in pred_cols
-            if formula.get_var_types()[var] == VarType.FACTOR and var in by  # noqa: F405
+            if formula.get_var_types()[var] == VarType.FACTOR and var in by
         ]
 
     # fmt: on
@@ -138,21 +145,21 @@ def __get_data_limit_counts(formula, pred_dat, cvars, by, by_cont, lim_dist=0.1)
 
 
 def __pred_plot(
-    pred,
-    b,
-    tvars,
-    pred_in_limits,
-    x1,
-    x2,
-    x1_exp,
-    ci,
-    n_vals,
-    ax,
-    _cmp,
-    col,
-    ylim,
-    link,
-    legend_label,
+    pred: np.ndarray,
+    b: np.ndarray,
+    tvars: list[str],
+    pred_in_limits: np.ndarray,
+    x1: np.ndarray,
+    x2: np.ndarray,
+    x1_exp: np.ndarray,
+    ci: bool,
+    n_vals: int,
+    ax: any,
+    _cmp: any,
+    col: float,
+    ylim: tuple[float, float],
+    link: any,
+    legend_label: str,
 ):
     """Internal function to visualize a univariate smooth of covariate `x1` or a tensor smooth of
     covariate `x1` and `x2`.
@@ -160,25 +167,25 @@ def __pred_plot(
     Called by :func:`plot`, :func:`plot_fitted`, and :func:`plot_diff`.
 
     :param pred: Vector holding model prediction
-    :type pred: [float]
+    :type pred: np.ndarray
     :param b: Vector holding standard error that needs to be added to/subtracted from `pred` to
         obtain ci boundaries.
-    :type b: [float]
+    :type b: np.ndarray
     :param tvars: List of variables to be visualized - contains one string for univariate smooths,
         two for tensor smooths.
-    :type tvars: [str]
+    :type tvars: list[str]
     :param pred_in_limits: bolean vector indicating which prediction was obtained for a covariate
         combination within data limits.
     :type pred_in_limits: [bool]
     :param x1: Unique values of covariate x1
-    :type x1: [float]
+    :type x1: np.ndarray
     :param x2: Unique values of covariate x2
-    :type x2: [float]
+    :type x2: np.ndarray
     :param x1_exp: For univariate smooth like `x1`, for tensor smooth this holds `x1` for each
         value of `x2`
-    :type x1_exp: [float]
-    :param ci: Same as `x1_exp` for `x2`
-    :type ci: [float]
+    :type x1_exp: np.ndarray
+    :param ci: Bool indicating whether to visualize confidence intervals
+    :type ci: bool
     :param n_vals: Number of values use to create each marginal covariate
     :type n_vals: int
     :param ax: matplotlib.axis to plot on
@@ -188,7 +195,7 @@ def __pred_plot(
     :param col: color to use for univariate plot, float in [0,1]
     :type col: float
     :param ylim: limits for y-axis/z-axis
-    :type ylim: (float,float)
+    :type ylim: tuple[float,float]
     :param link: Link function of model.
     :type link: Link
     :param legend_label: Legend label to pass to univariate smooths.
@@ -257,7 +264,7 @@ def __pred_plot(
 
 
 def plot(
-    model: GAMM | GAMMLSS | GSMM,  # noqa: F405
+    model: GAMM | GAMMLSS | GSMM,
     which: list[int] | None = None,
     dist_par: int = 0,
     n_vals: int = 30,
@@ -269,7 +276,7 @@ def plot(
     seed: int | None = None,
     cmp: str | None = None,
     plot_exist: bool = False,
-    plot_exist_style: str = "both",
+    plot_exist_style: str | None = None,
     axs: list[matplotlib.axis.Axis] | None = None,
     fig_size: tuple[float, float] = (6 / 2.54, 6 / 2.54),
     math_font_size: int = 9,
@@ -289,7 +296,7 @@ def plot(
 
     To simply obtain visualizations of all smooth terms estimated, it is sufficient to call::
 
-        plot(model) # or plot(model,dist_par=0) in case of a GAMMLSS model
+        plot(model) # or plot(model,dist_par=0) in case of a GAMMLSS/GSMM model
 
     This will visualize all smooth terms estimated by the model of the first distribution parameter
     (index 0) and automatically determine whether confidence intervals should be drawn or not (by
@@ -304,12 +311,12 @@ def plot(
 
     :param model: The estimated GAMM, GAMMLSS, or GSMM model for which the visualizations are to be
         obtained
-    :type model: GAMM|GAMMLSS|GSMM
+    :type model: GAMM | GAMMLSS | GSMM
     :param which: The indices corresponding to the smooth that should be visualized or ``None`` in
         which case all smooth terms will be visualized, defaults to None
-    :type which: list[int]|None, optional
+    :type which: list[int] | None, optional
     :param dist_par: The index corresponding to the parameter for which to make the prediction
-        (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
+        (e.g., 0 = mean) - only necessary if a GAMMLSS or GSMM model is provided, defaults to 0
     :type dist_par: int, optional
     :param n_vals: Number of covariate values over which to evaluate the function. Will result in
         ``n_vals**2`` eval points for tensor smooths, defaults to 30
@@ -346,9 +353,9 @@ def plot(
         limits being hidden, defaults to False
     :type plot_exist: bool, optional
     :param plot_exist_style: Determines the style of the data distribution indication for smooths.
-        Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of
-        data limits, defaults to 'both'
-    :type plot_exist_style: str, optional
+        Must be 'rug', 'hide',or 'both'. 'both' will add both the rug-plot and hide values out of
+        data limits, defaults to None (which results in 'rug' for univariate and 'hide' for tensor)
+    :type plot_exist_style: str | None, optional
     :param axs: A list of ``matplotlib.axis.Axis`` on which Figures should be drawn, defaults to
         None in which case axis will be created by the function and ``plot.show()`` will be called
         at the end
@@ -367,7 +374,7 @@ def plot(
         [0,1]. Used to get a color for unicariate smooth terms, defaults to None in which case
         colors will be selected automatically depending on whether the smooth has a `by` keyword or
         not
-    :type prov_cols: float|[float]|None, optional
+    :type prov_cols: float | list[float] | None, optional
     :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in
         ``[0,1]``) at which a point is considered too far away from training data. Setting this to 0
         means we visualize only points for which there is trainings data, setting this to 1 means
@@ -377,8 +384,10 @@ def plot(
         be created
     """
 
-    if isinstance(model, GAMM) and dist_par > 0:  # noqa: F405
+    if isinstance(model, GAMM) and dist_par > 0:
         dist_par = 0
+
+    orig_plot_exist_style = plot_exist_style
 
     # Get all necessary information from the model formula
     terms = model.formulas[dist_par].get_terms()
@@ -403,7 +412,7 @@ def plot(
     # Check number of figures matches axis
     n_figures = 0
     for sti in stidx:
-        if isinstance(terms[sti], fs):  # noqa: F405
+        if isinstance(terms[sti], fs):
             n_figures += 1
         else:
             if not terms[sti].by is None:
@@ -431,6 +440,8 @@ def plot(
 
         # Start by generating prediction data for the current smooth term.
         tvars = terms[sti].variables
+        if orig_plot_exist_style is None:
+            plot_exist_style = "hide" if len(tvars) > 1 else "rug"
         pred_dat = {}
         x1_exp = []
         if len(tvars) == 2:
@@ -463,7 +474,7 @@ def plot(
                 if vari in terms[sti].variables:
                     continue
                 else:
-                    if vartypes[vari] == VarType.FACTOR:  # noqa: F405
+                    if vartypes[vari] == VarType.FACTOR:
                         if vari in model.formulas[dist_par].get_subgroup_variables():
                             pred_dat[vari.split(":")[0]] = [
                                 code_factors[vari][0] for _ in range(len(x1_exp))
@@ -518,7 +529,7 @@ def plot(
 
             # Subtract intercept from prediction - it was just used to adjust se
             if use_inter:
-                if isinstance(model, GAMM):  # noqa: F405
+                if isinstance(model, GAMM):
                     _cf, _ = model.get_pars()
                 else:
                     split_coef = np.split(model.coef, model.coef_split_idx)
@@ -709,7 +720,7 @@ def plot(
                 levels = [factor_codes[sti_by][terms[sti].binary[1]]]
 
             # Select a small set of levels for random smooths
-            if isinstance(terms[sti], fs):  # noqa: F405
+            if isinstance(terms[sti], fs):
                 ymin = np.finfo(float).max
                 ymax = np.finfo(float).min
 
@@ -730,10 +741,7 @@ def plot(
                     else:
                         # Note, placeholder selection must exlcude by/binary variable for which we
                         # need to provide the current level!
-                        if (
-                            vartypes[vari] == VarType.FACTOR  # noqa: F405
-                            and vari == sti_by
-                        ):
+                        if vartypes[vari] == VarType.FACTOR and vari == sti_by:
                             if (
                                 vari
                                 in model.formulas[dist_par].get_subgroup_variables()
@@ -747,7 +755,7 @@ def plot(
                                     code_factors[vari][leveli]
                                     for _ in range(len(x1_exp))
                                 ]
-                        elif vartypes[vari] == VarType.FACTOR:  # noqa: F405
+                        elif vartypes[vari] == VarType.FACTOR:
                             if (
                                 vari
                                 in model.formulas[dist_par].get_subgroup_variables()
@@ -784,7 +792,7 @@ def plot(
                 # CI-decision - exclude factor smooths if not requested explicitly.
                 use_ci = ci
                 if use_ci is None:
-                    if not isinstance(terms[sti], fs):  # noqa: F405
+                    if not isinstance(terms[sti], fs):
                         use_ci = True
                     else:
                         use_ci = False
@@ -816,7 +824,7 @@ def plot(
 
                 # Subtract intercept
                 if use_inter:
-                    if isinstance(model, GAMM):  # noqa: F405
+                    if isinstance(model, GAMM):
                         _cf, _ = model.get_pars()
                     else:
                         split_coef = np.split(model.coef, model.coef_split_idx)
@@ -865,7 +873,7 @@ def plot(
                 )
 
                 # And set up labels again + rug plots if requested
-                if isinstance(terms[sti], fs):  # noqa: F405
+                if isinstance(terms[sti], fs):
                     ymin = min(ymin, np.min(pred))
                     ymax = max(ymax, np.max(pred))
 
@@ -1018,7 +1026,7 @@ def plot(
 
             # Random smooths are all plotted to single figure, so handle labels here.
             # No reason to plot rug
-            if isinstance(terms[sti], fs):  # noqa: F405
+            if isinstance(terms[sti], fs):
                 vmin = ylim[0] if ylim is not None else ymin
                 vmax = ylim[1] if ylim is not None else ymax
                 ticks = np.linspace(vmin, vmax, 5)
@@ -1043,9 +1051,9 @@ def plot(
 def plot_fitted(
     pred_dat: pd.DataFrame,
     tvars: list[str],
-    model: GAMM | GAMMLSS,  # noqa: F405
+    model: GAMM | GAMMLSS | GSMM,
     use: list[int] | None = None,
-    pred_factors: list[str] | None = None,
+    pred_factors: list[str] | None = [],
     dist_par: int = 0,
     ci: bool = True,
     ci_alpha: float = 0.05,
@@ -1054,7 +1062,7 @@ def plot_fitted(
     seed: int | None = None,
     cmp: str | None = None,
     plot_exist: bool = False,
-    plot_exist_style: str = "both",
+    plot_exist_style: str | None = None,
     response_scale: bool = True,
     ax: matplotlib.axis.Axis | None = None,
     fig_size: tuple[float, float] = (6 / 2.54, 6 / 2.54),
@@ -1109,18 +1117,19 @@ def plot_fitted(
     :param tvars: List of variables to be visualized - must contain one string for predictions
         visualized as a function of a single variable, two for predictions visualized as a function
         of two variables
-    :type tvars: [str]
+    :type tvars: list[str]
     :param model: The estimated GAMM, GAMMLSS, or GSMM model for which the visualizations are to be
         obtained
-    :type model: GAMM or GAMMLSS or GSMM
+    :type model: GAMM | GAMMLSS | GSMM
     :param use: The indices corresponding to the terms that should be used to obtain the prediction
         or ``None`` in which case all fixed effects will be used, defaults to None
-    :type use: [int] | None, optional
+    :type use: list[int] | None, optional
     :param pred_factors: List of factor variables to consider for data limit/availability
-        computations - by default, all factor variables in the model are considered.
+        computations or None in which case all factors will be considered - by default no factor
+        variables are considered (i.e., ``pred_factors=[]``)
     :type pred_factors: [str] | None, optional
     :param dist_par: The index corresponding to the parameter for which to make the prediction
-        (e.g., 0 = mean) - only necessary if a GAMMLSS model is provided, defaults to 0
+        (e.g., 0 = mean) - only necessary if a GAMMLSS or GSMM model is provided, defaults to 0
     :type dist_par: int, optional
     :param ci: Whether the standard error ``se`` for credible interval (CI; see  Wood, 2017)
         calculation should be computed and used to visualize CIs. The CI is then
@@ -1151,9 +1160,9 @@ def plot_fitted(
         being hidden, defaults to False
     :type plot_exist: bool, optional
     :param plot_exist_style: Determines the style of the data distribution indication for smooths.
-        Must be 'rug', 'hide',or 'both'. 'both' will both add the rug-plot and hide values out of
-        data limits, defaults to 'both'
-    :type plot_exist_style: str, optional
+        Must be 'rug', 'hide',or 'both'. 'both' will add both the rug-plot and hide values out of
+        data limits, defaults to None (which results in 'rug' for univariate and 'hide' for tensor)
+    :type plot_exist_style: str | None, optional
     :param response_scale: Whether or not predictions and CIs should be shown on the scale of the
         model predictions (linear scale) or on the 'response-scale' i.e., the scale of the mean,
         defaults to True
@@ -1174,7 +1183,7 @@ def plot_fitted(
         ``legend_label=True``) or to the color-bar for tensor predictions, defaults to None
     :type label: str | None, optional
     :param legend_label: Whether or not any ``label`` should be added to a legend (don't forget to
-        call :func:`plt.legend()`) or to the y-axis for univariate predicitions, defaults to False
+        call :func:`plt.legend`) or to the y-axis for univariate predicitions, defaults to False
         (the latter)
     :type legend_label: bool, optional
     :param title: A title to add to the plot, defaults to None
@@ -1187,13 +1196,13 @@ def plot_fitted(
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
 
-    if isinstance(model, GAMM):  # noqa: F405
+    if isinstance(model, GAMM):
         if dist_par > 0:
             dist_par = 0
     elif (
         response_scale
-        and (isinstance(model.family, GAUMLSS) == False)  # noqa: F405, E712
-        and (isinstance(model.family, GAMMALS) == False)  # noqa: F405, E712
+        and (isinstance(model.family, GAUMLSS) is False)
+        and (isinstance(model.family, GAMMALS) is False)
     ):
         warnings.warn(
             (
@@ -1201,13 +1210,16 @@ def plot_fitted(
             )
         )
 
+    if plot_exist_style is None:
+        plot_exist_style = "hide" if len(tvars) > 1 else "rug"
+
     # Select only fixed effects if nothing is provided
     if use is None:
         use = model.formulas[dist_par].get_linear_term_idx()
 
         terms = model.formulas[dist_par].get_terms()
         for sti in model.formulas[dist_par].get_smooth_term_idx():
-            if not isinstance(terms[sti], fs):  # noqa: F405
+            if not isinstance(terms[sti], fs):
                 use.append(sti)
 
     # Create figure if necessary
@@ -1256,8 +1268,7 @@ def plot_fitted(
             pred_factors = [
                 var
                 for var in pred_dat.columns
-                if model.formulas[dist_par].get_var_types()[var]
-                == VarType.FACTOR  # noqa: F405
+                if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR
             ]
         if (pred_factors is not None) and len(pred_factors) == 0:
             pred_factors = None
@@ -1274,7 +1285,7 @@ def plot_fitted(
     # By default transform predictions to scale of mean
     link = None
     if response_scale:
-        if isinstance(model, GAMM) is False:  # noqa: F405
+        if isinstance(model, GAMM) is False:
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -1450,7 +1461,7 @@ def plot_diff(
     pred_dat1: pd.DataFrame,
     pred_dat2: pd.DataFrame,
     tvars: list[str],
-    model: GAMM | GAMMLSS,  # noqa: F405
+    model: GAMM | GAMMLSS | GSMM,
     use: list[int] | None = None,
     dist_par: int = 0,
     ci_alpha: float = 0.05,
@@ -1546,13 +1557,13 @@ def plot_diff(
     :param tvars: List of variables to be visualized - must contain one string for difference
         predictions visualized as a function of a single variable, two for difference predictions
         visualized as a function of two variables
-    :type tvars: [str]
-    :param model: The estimated GAMM or GAMMLSS model for which the visualizations are to be
+    :type tvars: list[str]
+    :param model: The estimated GAMM, GAMMLSS, or GSMM model for which the visualizations are to be
         obtained
-    :type model: GAMM or GAMMLSS
+    :type model: GAMM | GAMMLSS | GSMM
     :param use: The indices corresponding to the terms that should be used to obtain the prediction
         or ``None`` in which case all fixed effects will be used, defaults to None
-    :type use: [int]|None, optional
+    :type use: list[int] | None, optional
     :param dist_par: The index corresponding to the parameter for which to make the prediction
         (e.g., 0 = mean) - only necessary if a GAMMLSS or GSMM model is provided, defaults to 0
     :type dist_par: int, optional
@@ -1571,7 +1582,7 @@ def plot_diff(
     :type seed: int|None, optional
     :param cmp: string corresponding to name for a matplotlib colormap, defaults to None in which
         case it will be set to 'RdYlBu_r'.
-    :type cmp: str|None, optional
+    :type cmp: str | None, optional
     :param plot_exist: Whether or not an indication of the data distribution should be provided.
         For difference predictions visualized as a function of a single variable this will simply
         hide predictions outside of the data-limits. For difference predictions visualized as a
@@ -1590,15 +1601,15 @@ def plot_diff(
     :type fig_size: tuple[float,float], optional
     :param ylim: Tuple holding y-limits (z-limits for 2d plots), defaults to None in which case
         y_limits will be inferred from the predictions made
-    :type ylim: tuple[float,float]|None, optional
+    :type ylim: tuple[float,float] | None, optional
     :param col: A float in [0,1]. Used to get a color for univariate predictions from the chosen
         colormap, defaults to 0.7
     :type col: float, optional
     :param label: A label to add to the y axis for univariate predictions or to the color-bar for
         tensor predictions, defaults to None
-    :type label: str|None, optional
+    :type label: str | None, optional
     :param title: A title to add to the plot defaults to None
-    :type title: str|None, optional
+    :type title: str | None, optional
     :param lim_dist: The floating point distance (on normalized scale, i.e., values have to be in
         ``[0,1]``) at which a point is considered too far away from training data. Setting this to
         0 means we visualize only points for which there is trainings data, setting this to 1 means
@@ -1607,18 +1618,17 @@ def plot_diff(
     :raises ValueError: If a visualization is requested for more than 2 variables
     """
 
-    if isinstance(model, GAMM):  # noqa: F405
+    if isinstance(model, GAMM):
         if dist_par > 0:
             dist_par = 0
     elif (
         response_scale
-        and (isinstance(model.family, GAUMLSS) == False)  # noqa: F405, E712
-        and (isinstance(model.family, GAMMALS) == False)  # noqa: F405, E712
+        and (isinstance(model.family, GAUMLSS) is False)
+        and (isinstance(model.family, GAMMALS) is False)
     ):
-        raise ValueError(
+        warnings.warn(
             (
-                "This function only supports GAMMs and Gaussian or Gamma GAMMLSS models when "
-                "setting ``response_scale=True``."
+                "Setting ``response_scale=True`` is usually only appropriate for GAMMs or GAMMLSS."
             )
         )
 
@@ -1627,7 +1637,7 @@ def plot_diff(
 
         terms = model.formulas[dist_par].get_terms()
         for sti in model.formulas[dist_par].get_smooth_term_idx():
-            if not isinstance(terms[sti], fs):  # noqa: F405
+            if not isinstance(terms[sti], fs):
                 use.append(sti)
 
     fig = None
@@ -1667,8 +1677,7 @@ def plot_diff(
         pred_factors1 = [
             var
             for var in pred_dat1.columns
-            if model.formulas[dist_par].get_var_types()[var]
-            == VarType.FACTOR  # noqa: F405
+            if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR
         ]
         if len(pred_factors1) == 0:
             pred_factors1 = None
@@ -1686,8 +1695,7 @@ def plot_diff(
         pred_factors2 = [
             var
             for var in pred_dat2.columns
-            if model.formulas[dist_par].get_var_types()[var]
-            == VarType.FACTOR  # noqa: F405
+            if model.formulas[dist_par].get_var_types()[var] == VarType.FACTOR
         ]
         if len(pred_factors2) == 0:
             pred_factors2 = None
@@ -1706,7 +1714,7 @@ def plot_diff(
 
     link = None
     if response_scale:
-        if isinstance(model, GAMM) == False:  # noqa: F405, E712
+        if isinstance(model, GAMM) is False:
             link = model.family.links[dist_par]
         else:
             link = model.family.link
@@ -1823,7 +1831,7 @@ def plot_diff(
 
 
 def plot_val(
-    model: GAMM | GAMMLSS,  # noqa: F405
+    model: GAMM | GAMMLSS | GSMM,
     pred_viz: list[str] | None = None,
     resid_type: str = "Deviance",
     ar_lag: int = 100,
@@ -1867,8 +1875,6 @@ def plot_val(
     any extra arguments accepted by the family specifc ``get_resid()`` method, can be passed along
     via the ``gsmm_kwargs`` keyword argument.
 
-    **Note**: the Multinomial model (`MULNOMLSS`) is currently not supported by this function.
-
     **Note**: For the qq-plot, the reference line is **not** the diagonal obtained by plotting the
     theoretical quantiles against themselves. Instead, the line is calculated as done in the
     ``stats`` package in R.
@@ -1881,8 +1887,8 @@ def plot_val(
      - ``qqnorm`` and ``qqline`` functions in R, see: \
         https://github.com/wch/r-source/blob/trunk/src/library/stats/R/qqnorm.R
 
-    :param model: Estimated GAMM, GAMMLSS, or GSMM model, for which the reisdual plots should be
-        generated.
+    :param model: The estimated GAMM, GAMMLSS, or GSMM model for which the visualizations are to be
+        obtained
     :type model: GAMM | GAMMLSS | GSMM
     :param pred_viz: A list of additional predictor variables included in the model. For each one
         provided an additional plot will be created with the predictor on the x-axis and the
@@ -1932,11 +1938,9 @@ def plot_val(
     :type gsmm_kwargs_pred: dict | None, optional
     :raises ValueError: If fewer matplotlib axis are provided than the number of figures that would
         be created
-    :raises TypeError: If the function is called with a ``model`` of the ``MULNOMLSS`` family,
-        which is currently not supported
     """
 
-    if isinstance(model, GAMM):  # noqa: F405
+    if isinstance(model, GAMM):
         if dist_par > 0:
             dist_par = 0
 
@@ -1944,7 +1948,7 @@ def plot_val(
     n_figures = 4
 
     if obs is None:
-        if isinstance(model, GAMM):  # noqa: F405
+        if isinstance(model, GAMM):
             obs = True
         else:
             obs = False
@@ -1971,7 +1975,7 @@ def plot_val(
         ]
         axs = [fig.add_subplot(1, 1, 1) for fig in figs]
 
-    if isinstance(model, GAMM):  # noqa: F405
+    if isinstance(model, GAMM):
         _, sigma = model.get_pars()  # sigma = **variance** of residuals!
     else:
         sigma = 1  # Standardized residuals should look like N(0,1)
@@ -1979,12 +1983,12 @@ def plot_val(
     pred = model.preds[dist_par]  # The model prediction for the entire data
 
     if response_scale:
-        if isinstance(model, GAMM) is False:  # noqa: F405
+        if isinstance(model, GAMM) is False:
             pred = model.family.links[dist_par].fi(pred)
         else:
             pred = model.family.link.fi(pred)
 
-    if isinstance(model, GAMM):  # noqa: F405
+    if isinstance(model, GAMM):
         res = model.get_resid(type=resid_type)
     else:
         res = model.get_resid(**gsmm_kwargs_pred)
@@ -2000,7 +2004,7 @@ def plot_val(
         axs[axi].scatter(pred, y, color="black", facecolor="none")
 
         if response_scale:
-            axs[axi].set_xlabel("Predicted (Mean scale)", fontweight="bold")
+            axs[axi].set_xlabel("Predicted (Response scale)", fontweight="bold")
         else:
             axs[axi].set_xlabel("Predicted", fontweight="bold")
 
@@ -2031,15 +2035,14 @@ def plot_val(
             axs[axi].spines["right"].set_visible(False)
             axi += 1
 
-    if isinstance(model, GAMM) is False:  # noqa: F405
+    if isinstance(model, GAMM) is False:
         # Re-compute residuals for the next set of plots
         res = model.get_resid(**gsmm_kwargs)
 
     # Histogram for normality
     if qq is False:
-        axs[axi].hist(
-            res, bins=min(100, int(len(res) / 2)), density=True, color="black"
-        )
+        axs[axi].hist(res, density=True, color="black")
+
         x = np.linspace(
             scp.stats.norm.ppf(0.0001, scale=math.sqrt(sigma)),
             scp.stats.norm.ppf(0.9999, scale=math.sqrt(sigma)),

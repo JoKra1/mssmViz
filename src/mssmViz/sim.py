@@ -1,8 +1,30 @@
 import numpy as np
 import scipy as scp
 import pandas as pd
-from mssm.models import *  # noqa: F403
+from mssm.models import (
+    Formula,
+    lhs,
+    i,
+    f,
+    GAMM,
+    Family,
+    GAMLSSFamily,
+    GSMMFamily,
+    Gaussian,
+    Gamma,
+    Poisson,
+    PropHaz,
+    ScaledT,
+    Binomial,
+    Identity,
+    LOG,
+    GAUMLSS,
+    GAMMALS,
+    DifferencePenalty,
+    MULNOMLSS,
+)
 from mssm.src.python.smooths import convolve_event
+from mssm.src.python.formula import build_penalties
 from mssm.src.python.gamm_solvers import cpp_cholP, compute_Linv, apply_eigen_perm
 from mssm.src.python.repara import reparam
 
@@ -10,19 +32,19 @@ from mssm.src.python.repara import reparam
 
 
 def sim1(
-    sim_size,
-    sim_sigma=5.5,
-    sim_lam=1e-4,
-    sim_weak_nonlin=0.5,
-    random_seed=None,
-    fixed_seed=42 * 3,
+    sim_size: int,
+    sim_sigma: float = 5.5,
+    sim_lam: float = 1e-4,
+    sim_weak_nonlin: float = 0.5,
+    random_seed: int | None = None,
+    fixed_seed: int = 42 * 3,
 ):
     """First simulation for an additive time-series model with trial-level non-linear random
     effects. Data-set contains covariates time & x, for which the effect is different for three
     levels of factor variable fact.
 
-    :param sim_size: Number of trials, defaults to 1000
-    :type sim_size: int, optional
+    :param sim_size: Number of trials
+    :type sim_size: int
     :param sim_sigma: Standard error for residuals, defaults to 5.5
     :type sim_sigma: float, optional
     :param sim_lam: Lambda parameter for trial-level non-linear effect complexity, defaults to 1e-4
@@ -31,7 +53,7 @@ def sim1(
     :type sim_weak_nonlin: float, optional
     :param random_seed: Seed for random parts of the simulation - should differ between repeated
         simulations, defaults to None
-    :type random_seed: int, optional
+    :type random_seed: int | None, optional
     :param fixed_seed: Seed for fixed effects in the simulation - should NOT differ between
         repeated simulations, defaults to None
     :type fixed_seed: int, optional
@@ -55,14 +77,14 @@ def sim1(
         }
     )
 
-    sim_formula = Formula(  # noqa: F405
-        lhs("y"),  # noqa: F405
-        [i(), f(["Time"], nk=15)],  # noqa: F405
+    sim_formula = Formula(
+        lhs("y"),
+        [i(), f(["Time"], nk=15)],
         data=sim_dat,
         print_warn=False,
     )
 
-    sim_model = GAMM(sim_formula, Gaussian())  # noqa: F405
+    sim_model = GAMM(sim_formula, Gaussian())
     sim_model.fit(progress_bar=False)
     sim_mat = sim_model.get_mmat()
 
@@ -108,11 +130,11 @@ def sim1(
     V[np.abs(V) < 1e-4] = 0
 
     # Get matrix for x effects
-    sim_formula2 = Formula(  # noqa: F405
-        lhs("y"), [i(), f(["x"], nk=5)], data=sim_dat, print_warn=False  # noqa: F405
+    sim_formula2 = Formula(
+        lhs("y"), [i(), f(["x"], nk=5)], data=sim_dat, print_warn=False
     )
 
-    sim_model2 = GAMM(sim_formula2, Gaussian())  # noqa: F405
+    sim_model2 = GAMM(sim_formula2, Gaussian())
     sim_model2.fit(progress_bar=False)
     sim_mat2 = sim_model2.get_mmat()
 
@@ -245,12 +267,12 @@ def sim1(
 
 
 def sim2(
-    sim_size,
-    sim_sigma=5.5,
-    sim_lam=1e-4,
-    set_zero=1,
-    random_seed=None,
-    fixed_seed=42 * 3,
+    sim_size: int,
+    sim_sigma: float = 5.5,
+    sim_lam: float = 1e-4,
+    set_zero: int = 1,
+    random_seed: int | None = None,
+    fixed_seed: int = 42 * 3,
 ):
     """Second simulation for an additive time-series model with trial-level non-linear random
     effects. Data contains two additional covariates apart from time (x & z) - values for z vary
@@ -258,8 +280,8 @@ def sim2(
 
     Ground-truth for x or z can be set to zero.
 
-    :param sim_size: Number of trials, defaults to 1000
-    :type sim_size: int, optional
+    :param sim_size: Number of trials
+    :type sim_size: int
     :param sim_sigma: Standard error for residuals, defaults to 5.5
     :type sim_sigma: float, optional
     :param sim_lam: Lambda parameter for trial-level non-linear effect complexity, defaults to 1e-4
@@ -268,7 +290,7 @@ def sim2(
     :type set_zero: int, optional
     :param random_seed: Seed for random parts of the simulation - should differ between repeated
         simulations, defaults to None
-    :type random_seed: int, optional
+    :type random_seed: int | None, optional
     :param fixed_seed: Seed for fixed effects in the simulation - should NOT differ between
         repeated simulations, defaults to None
     :type fixed_seed: int, optional
@@ -293,14 +315,14 @@ def sim2(
         }
     )
 
-    sim_formula = Formula(  # noqa: F405
-        lhs("y"),  # noqa: F405
-        [i(), f(["Time"], nk=15)],  # noqa: F405
+    sim_formula = Formula(
+        lhs("y"),
+        [i(), f(["Time"], nk=15)],
         data=sim_dat,
         print_warn=False,
     )
 
-    sim_model = GAMM(sim_formula, Gaussian())  # noqa: F405
+    sim_model = GAMM(sim_formula, Gaussian())
     sim_model.fit(progress_bar=False)
     sim_mat = sim_model.get_mmat()
 
@@ -335,11 +357,11 @@ def sim2(
     V[np.abs(V) < 1e-4] = 0
 
     # Get matrix for x effects
-    sim_formula2 = Formula(  # noqa: F405
-        lhs("y"), [i(), f(["x"], nk=5)], data=sim_dat, print_warn=False  # noqa: F405
+    sim_formula2 = Formula(
+        lhs("y"), [i(), f(["x"], nk=5)], data=sim_dat, print_warn=False
     )
 
-    sim_model2 = GAMM(sim_formula2, Gaussian())  # noqa: F405
+    sim_model2 = GAMM(sim_formula2, Gaussian())
     sim_model2.fit(progress_bar=False)
     sim_mat2 = sim_model2.get_mmat()
 
@@ -349,11 +371,11 @@ def sim2(
     ).reshape(-1, 1)
 
     # Get matrix for z effects
-    sim_formula3 = Formula(  # noqa: F405
-        lhs("y"), [i(), f(["z"], nk=10)], data=sim_dat, print_warn=False  # noqa: F405
+    sim_formula3 = Formula(
+        lhs("y"), [i(), f(["z"], nk=10)], data=sim_dat, print_warn=False
     )
 
-    sim_model3 = GAMM(sim_formula3, Gaussian())  # noqa: F405
+    sim_model3 = GAMM(sim_formula3, Gaussian())
     sim_model3.fit(progress_bar=False)
     sim_mat3 = sim_model3.get_mmat()
 
@@ -479,15 +501,15 @@ def sim2(
 
 
 def sim3(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    correlate=False,
-    dof=40,
-    seed=None,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     First Simulation performed by Wood et al., (2016): 4 smooths, 1 is really zero everywhere.
@@ -506,26 +528,28 @@ def sim3(
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
-    :param c: Effect strength for x3 effect - 0 = No effect, 1 = Maximal effect
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
         (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
-    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a
-        Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
-        treated as censored for Propoprtional Hazard model. Defaults to 0.
-    :type prop_q: float
-    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
-    :type correlate: bool
-    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
-    :type dof: int
     :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
         ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
+    :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of
+        a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
+        treated as censored for Propoprtional Hazard model. Defaults to 0.
+    :type prop_q: float
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
     """
     np_gen = np.random.default_rng(seed)
 
@@ -565,10 +589,10 @@ def sim3(
 
     eta = c * f0 + f1 + f2 + f3  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -584,12 +608,12 @@ def sim3(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, Poisson):  # noqa: F405
+    elif isinstance(family, Poisson):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
@@ -598,7 +622,7 @@ def sim3(
         mu = family.link.fi(eta)
         y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -630,23 +654,23 @@ def sim3(
 
     dat = pd.DataFrame({"y": y, "x0": x0, "x1": x1, "x2": x2, "x3": x3, "eta": eta})
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
 def sim4(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    correlate=False,
-    seed=None,
-    n_ranef=40,
-    dof=40,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    n_ranef: int = 40,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like ``sim3``, except that a random factor is added - second simulation performed by Wood et
@@ -665,26 +689,30 @@ def sim4(
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
     :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
     :type c: float
     :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
         (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
+    :type family: Family | GSMMFamily, optional
     :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of
         a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
-    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
-        ``Binomial()``, ``Poisson()``, or ``PropHaz()``. Defaults to ``Gaussian()``
-    :type family: Family | GSMMFamily, optional
-    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
-    :type correlate: bool
-    :param seed: Seed for simulation, defaults to None meaning no seed is used
-    :type seed: int | None, optional
     :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
     :type dof: int
+    :param seed: Seed for simulation, defaults to None meaning no seed is used
+    :type seed: int | None, optional
+    :param correlate: Whether predictor covariates should correlate or not. Defaults to False
+    :type correlate: bool
     """
     np_gen = np.random.default_rng(seed)
 
@@ -729,10 +757,10 @@ def sim4(
 
     eta = f0 + f1 + f2 + f3 + f4  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -748,12 +776,12 @@ def sim4(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, Poisson):  # noqa: F405
+    elif isinstance(family, Poisson):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
@@ -762,7 +790,7 @@ def sim4(
         mu = family.link.fi(eta)
         y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -804,15 +832,18 @@ def sim4(
         }
     )
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
-def sim5(n, seed=None):
+def sim5(
+    n: int,
+    seed: int | None = None,
+):
     """
-    Simulates `n` data-points for a Multi-nomial model - probability of Y_i being one of K=5 classes
+    Simulates `n` data-points for a Multinomial model - probability of Y_i being one of K=5 classes
     changes smoothly as a function of variable x and differently so for each class - based on
     slightly modified versions of the original functions of Gu & Whaba (1991).
 
@@ -823,6 +854,8 @@ def sim5(n, seed=None):
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
     """
@@ -837,7 +870,7 @@ def sim5(n, seed=None):
     ) * np.power(1 - x0, 10)
     f3 = 1 * x0 + 0.03 * x0**2
 
-    family = MULNOMLSS(4)  # noqa: F405
+    family = MULNOMLSS(4)
 
     mus = [np.exp(f0), np.exp(f1), np.exp(f2), np.exp(f3)]
 
@@ -849,14 +882,18 @@ def sim5(n, seed=None):
 
     y = np.zeros(n, dtype=int)
 
-    for i in range(n):
-        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+    for ii in range(n):
+        y[ii] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[ii, :]), size=1)[0])
 
     dat = pd.DataFrame({"y": y, "x0": x0})
     return dat
 
 
-def sim6(n, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
+def sim6(
+    n: int,
+    family: GAMLSSFamily = GAUMLSS([Identity(), LOG]),
+    seed: int | None = None,
+):
     """
     Simulates `n` data-points for a Gaussian or Gamma GAMMLSS model - mean and standard
     deviation/scale are modeled as functions of variable "x0", functions by Gu & Whaba (1991).
@@ -868,6 +905,8 @@ def sim6(n, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param family: Distribution for response variable, must be: ``GAUMLSS()``, ``GAMMALS()``.
         Defaults to ``GAUMLSS([Identity(),LOG()])``
     :type family: GAMLSSFamily, optional
@@ -884,10 +923,10 @@ def sim6(n, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
 
     mus = [mu_mean, mu_sd]
 
-    if isinstance(family, GAUMLSS):  # noqa: F405
+    if isinstance(family, GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0], scale=mus[1], size=n, random_state=seed)
 
-    elif isinstance(family, GAMMALS):  # noqa: F405
+    elif isinstance(family, GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -910,7 +949,12 @@ def sim6(n, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
     return dat
 
 
-def sim7(n, c, scale, seed=None):  # noqa: F405
+def sim7(
+    n: int,
+    scale: float,
+    c: int = 1,
+    seed: int | None = None,
+):
     """
     An overlap simulation with a random intercept. Two events are present that differ in their
     onset across different trials - each event triggers a response in the signal
@@ -925,10 +969,10 @@ def sim7(n, c, scale, seed=None):  # noqa: F405
 
     :param n: Number of trials to simulate
     :type n: int
-    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
-    :type c: float
     :param scale: Standard deviation for Gaussian noise to add to signal
     :type scale: float
+    :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
+    :type c: float
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
     """
@@ -978,7 +1022,12 @@ def sim7(n, c, scale, seed=None):  # noqa: F405
     return dat, onsets1, onsets2
 
 
-def sim8(n, c, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
+def sim8(
+    n: int,
+    c: int = 1,
+    family: GAMLSSFamily = GAUMLSS([Identity(), LOG]),
+    seed: int | None = None,
+):
     """
     Like sim6: Simulates `n` data-points for a Gaussian or Gamma GAMMLSS model - mean and standard
     deviation/scale are modeled as functions of variable "x0", functions by Gu & Whaba (1991).
@@ -991,6 +1040,8 @@ def sim8(n, c, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for scale smoother - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param family: Distribution for response variable, must be: ``GAUMLSS()`` or ``GAMMALS()``.
@@ -1010,10 +1061,10 @@ def sim8(n, c, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
 
     mus = [mu_mean, mu_sd]
 
-    if isinstance(family, GAUMLSS):  # noqa: F405
+    if isinstance(family, GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0], scale=mus[1], size=n, random_state=seed)
 
-    elif isinstance(family, GAMMALS):  # noqa: F405
+    elif isinstance(family, GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1036,7 +1087,12 @@ def sim8(n, c, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
     return dat
 
 
-def sim9(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
+def sim9(
+    n: int,
+    c: int = 1,
+    family: GAMLSSFamily = GAUMLSS([Identity(), LOG]),
+    seed: int | None = None,
+):
     """
     Like ``sim4``, except for a GAMMLSS model.
 
@@ -1050,8 +1106,8 @@ def sim9(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
-    :type scale: float
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for random effect - 0 = No effect (sd=0), 1 = Maximal effect (sd=1)
     :type c: float
     :param family: Distribution for response variable, must be: ``GAUMLSS()`` or ``GAMMALS()``.
@@ -1086,10 +1142,10 @@ def sim9(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
 
     mus = [mu_mean, mu_sd]
 
-    if isinstance(family, GAUMLSS):  # noqa: F405
+    if isinstance(family, GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0], scale=mus[1], size=n, random_state=seed)
 
-    elif isinstance(family, GAMMALS):  # noqa: F405
+    elif isinstance(family, GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1113,7 +1169,12 @@ def sim9(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
     return dat
 
 
-def sim10(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
+def sim10(
+    n: int,
+    c: int = 1,
+    family: GAMLSSFamily = GAUMLSS([Identity(), LOG]),
+    seed: int | None = None,
+):
     """
     Like ``sim9``, except that c is used to scale effect of f0.
 
@@ -1126,8 +1187,8 @@ def sim10(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
-    :type scale: float
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for effect of x0 - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param family: Distribution for response variable, must be: ``GAUMLSS()`` or ``GAMMALS()``.
@@ -1159,10 +1220,10 @@ def sim10(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
 
     mus = [mu_mean, mu_sd]
 
-    if isinstance(family, GAUMLSS):  # noqa: F405
+    if isinstance(family, GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0], scale=mus[1], size=n, random_state=seed)
 
-    elif isinstance(family, GAMMALS):  # noqa: F405
+    elif isinstance(family, GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1187,16 +1248,16 @@ def sim10(n, c=1, family=GAUMLSS([Identity(), LOG()]), seed=None):  # noqa: F405
 
 
 def sim11(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    n_ranef=40,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    dof=40,
-    seed=None,
-    correlate=False,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    n_ranef: int = 40,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like ``sim4``, except that a random smooth of variable `x0` is added - extension of the second
@@ -1216,25 +1277,27 @@ def sim11(
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
     :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random
         intercept
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (-5 in mgcv) and
-        baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
+        (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
+    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :type n_ranef: int
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
+    :type family: Family | GSMMFamily, optional
     :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of
         a Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
-    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
-    :type n_ranef: int
     :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
     :type dof: int
-    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
-        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
-    :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
     :param correlate: Whether predictor covariates should correlate or not. Defaults to False
@@ -1284,22 +1347,22 @@ def sim11(
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -1338,10 +1401,10 @@ def sim11(
 
     eta = f0 + f1 + f2 + f3 + f4  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1357,12 +1420,12 @@ def sim11(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, Poisson):  # noqa: F405
+    elif isinstance(family, Poisson):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
@@ -1371,7 +1434,7 @@ def sim11(
         mu = family.link.fi(eta)
         y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -1413,19 +1476,19 @@ def sim11(
         }
     )
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
 def sim12(
-    n,
-    c=1,
-    n_ranef=40,
-    family=GAUMLSS([Identity(), LOG]),  # noqa: F405
-    seed=None,
-    correlate=False,
+    n: int,
+    c: int = 1,
+    n_ranef: int = 40,
+    family: GAMLSSFamily = GAUMLSS([Identity(), LOG]),
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like ``sim11``, except for GAMLSS models. ``x0``, ``x1``, and ``x4`` impact the mean - the
@@ -1445,6 +1508,8 @@ def sim12(
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random
         intercept
     :type c: float
@@ -1502,22 +1567,22 @@ def sim12(
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -1559,16 +1624,16 @@ def sim12(
 
     eta_sd *= 0.1
 
-    if isinstance(family.links[0], LOG):  # noqa: F405
+    if isinstance(family.links[0], LOG):
         eta_mean *= 0.5
 
     mus = [family.links[0].fi(eta_mean), family.links[1].fi(eta_sd)]
     # print(mus[1])
 
-    if isinstance(family, GAUMLSS):  # noqa: F405
+    if isinstance(family, GAUMLSS):
         y = scp.stats.norm.rvs(loc=mus[0], scale=mus[1], size=n, random_state=seed)
 
-    elif isinstance(family, GAMMALS):  # noqa: F405
+    elif isinstance(family, GAMMALS):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1600,14 +1665,15 @@ def sim12(
 
 
 def sim13(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    n_ranef=40,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    seed=None,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    n_ranef: int = 40,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
 ):
     """
     Like ``sim11``, but two additional nested factor variables "x5" and "x6 are added, each with
@@ -1620,22 +1686,26 @@ def sim13(
         General Smooth Models
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
     :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random
         intercept
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (-5 in mgcv) and
-        baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
+        (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
     :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a
         Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
-    :param family: Distribution for response variable, must be:
-        ``Gaussian()``, ``Gamma()``, ``Binomial()``, or ``PropHaz()``. Defaults to ``Gaussian()``
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -1672,22 +1742,22 @@ def sim13(
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -1726,10 +1796,10 @@ def sim13(
 
     eta = f0 + f4  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1745,12 +1815,16 @@ def sim13(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
+
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -1791,22 +1865,23 @@ def sim13(
         }
     )
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
 def sim14(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    n_ranef=40,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    seed=None,
-    correlate=False,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    n_ranef: int = 40,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like ``sim11``, except that there is a non-linear interaction effect of x1,x2 present. Function
@@ -1832,22 +1907,26 @@ def sim14(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
     :param c: Effect strength for random smooth - 0 = Maximally wiggly, 1 = ground truth is random
         intercept
     :type c: float
-    :param binom_offset: Additive adjustment to log-predictor for Binomial model (-5 in mgcv) and
-        baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
+    :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
+        (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
     :type binom_offset: float
     :param prop_q: Simulated times exceeding ``q(prop_q)'' where ``q`` is the quantile function of a
         Weibull model parameterized with ``b=np.min(max(binom_offset,0.01)*np.exp(eta))`` are
         treated as censored for Propoprtional Hazard model. Defaults to 0.
     :type prop_q: float
+    :param dof: Degrees of freedom to use for a :class:`ScaledT` family.
+    :type dof: int
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
-    :param family: Distribution for response variable, must be:
-        ``Gaussian()``, ``Gamma()``, ``Binomial()``, or ``PropHaz()``. Defaults to ``Gaussian()``
+    :param family: Distribution for response variable, must be: ``Gaussian()``, ``Gamma()``,
+        ``Binomial()``, ``Poisson()``, ``ScaledT()`` or ``PropHaz()``. Defaults to ``Gaussian()``
     :type family: Family | GSMMFamily, optional
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -1912,22 +1991,22 @@ def sim14(
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -1966,10 +2045,10 @@ def sim14(
 
     eta = f0 + f1 + f3 + f4  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -1985,12 +2064,16 @@ def sim14(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, ScaledT):
+        mu = family.link.fi(eta)
+        y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
+
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -2032,27 +2115,28 @@ def sim14(
         }
     )
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
 def sim15(
-    n,
-    scale,
-    c=1,
-    binom_offset=0,
-    family=Gaussian(),  # noqa: F405
-    prop_q=0.95,
-    dof=40,
-    seed=None,
-    correlate=False,
+    n: int,
+    scale: float,
+    c: int = 1,
+    binom_offset: float = 0,
+    family: Family | GSMMFamily = Gaussian(),
+    prop_q: float = 0.95,
+    dof: int = 40,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like :func:`sim3` but with a non-linear interaction of x1 and x2. Function
     is the first example used by Wood (2006; also used in gamSim function in ``mgcv``).
-    So model of the mean is c*f(x0) + f(x1,x2) (effect of x3 is always zero).
+    So model of the linear predictor of the mean is c*f(x0) + f(x1,x2) (effect of x3 is always
+    zero).
 
     Covariates can also be simulated to correlate with each other, following the steps outlined in
     supplementary materials E of Wood et al., (2016).
@@ -2067,9 +2151,11 @@ def sim15(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Standard deviation for `family='Gaussian'` else scale parameter to change SNR
     :type scale: float
-    :param c: Effect strength for x3 effect - 0 = No effect, 1 = Maximal effect
+    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param binom_offset: Additive adjustment to log-predictor for Binomial and Poisson model
         (-5 in mgcv) and baseline hazard parameter for Propoprtional Hazard model. Defaults to 0.
@@ -2140,10 +2226,10 @@ def sim15(
 
     eta = c * f0 + f1 + f3  # eta in truth for non-Gaussian
 
-    if isinstance(family, Gaussian):  # noqa: F405
+    if isinstance(family, Gaussian):
         y = scp.stats.norm.rvs(loc=eta, scale=scale, size=n, random_state=seed)
 
-    elif isinstance(family, Gamma):  # noqa: F405
+    elif isinstance(family, Gamma):
         # Need to transform from mean and scale to \alpha & \beta
         # From Wood (2017), we have that
         # \phi = 1/\alpha
@@ -2159,12 +2245,12 @@ def sim15(
         beta = alpha / mu
         y = scp.stats.gamma.rvs(a=alpha, scale=(1 / beta), size=n, random_state=seed)
 
-    elif isinstance(family, Binomial):  # noqa: F405
+    elif isinstance(family, Binomial):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.binom.rvs(1, mu, size=n, random_state=seed)
 
-    elif isinstance(family, Poisson):  # noqa: F405
+    elif isinstance(family, Poisson):
         eta += binom_offset
         mu = family.link.fi(eta * scale)
         y = scp.stats.poisson.rvs(mu, size=n, random_state=seed)
@@ -2173,7 +2259,7 @@ def sim15(
         mu = family.link.fi(eta)
         y = scp.stats.t.rvs(df=dof, size=n, loc=mu, scale=scale, random_state=seed)
 
-    elif isinstance(family, PropHaz):  # noqa: F405
+    elif isinstance(family, PropHaz):
         # Based on example code for mgcv's coxph family available here:
         # https://github.com/cran/mgcv/blob/aff4560d187dfd7d98c7bd367f5a0076faf129b7/man/coxph.Rd
         # Assumes a Weibull proportional Hazard model so baseline hazard function is
@@ -2205,17 +2291,17 @@ def sim15(
 
     dat = pd.DataFrame({"y": y, "x0": x0, "x1": x1, "x2": x2, "x3": x3, "eta": eta})
 
-    if isinstance(family, PropHaz):  # noqa: F405
+    if isinstance(family, PropHaz):
         dat["delta"] = delta
 
     return dat
 
 
 def sim16(
-    n,
-    c=1,
-    seed=None,
-    correlate=False,
+    n: int,
+    c: int = 1,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Simulate data from a multivariate normal distribution.
@@ -2237,6 +2323,8 @@ def sim16(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param seed: Seed for simulation, defaults to None meaning no seed is used
@@ -2308,7 +2396,13 @@ def sim16(
     return dat
 
 
-def sim17(n, scale, c=1, seed=None, correlate=False):
+def sim17(
+    n: int,
+    scale: float,
+    c: int = 1,
+    seed: int | None = None,
+    correlate: bool = False,
+):
     """
     Like sim5, but probabilities are all affected by different predictor ("x0"-"x3") and
     predictors can correlate. Effect of "x0" can be reduced to zero by setting ``c=0``.
@@ -2320,6 +2414,8 @@ def sim17(n, scale, c=1, seed=None, correlate=False):
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param scale: Scale parameter to increase snr
     :type scale: float
     :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
@@ -2363,7 +2459,7 @@ def sim17(n, scale, c=1, seed=None, correlate=False):
     ) * np.power(1 - x2, 10)
     f3 = 1 * x3 + 0.03 * x3**2
 
-    family = MULNOMLSS(4)  # noqa: F405
+    family = MULNOMLSS(4)
 
     mus = [
         np.exp(c * f0 * scale),
@@ -2380,8 +2476,8 @@ def sim17(n, scale, c=1, seed=None, correlate=False):
 
     y = np.zeros(n, dtype=int)
 
-    for i in range(n):
-        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+    for ii in range(n):
+        y[ii] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[ii, :]), size=1)[0])
 
     dat = pd.DataFrame(
         {
@@ -2399,7 +2495,14 @@ def sim17(n, scale, c=1, seed=None, correlate=False):
     return dat
 
 
-def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
+def sim18(
+    n: int,
+    scale: float,
+    c: float = 1,
+    n_ranef: int = 40,
+    seed: int | None = None,
+    correlate=False,
+):
     """
     Like sim17, but with a random smooth of factor "x4" added to first linear predictor.
 
@@ -2414,9 +2517,13 @@ def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param scale: Scale parameter to increase snr
     :type scale: float
-    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :param c: Used here to scale the contribution of the random smooth. Setting it to 0 means the
+        ground truth is maximally wiggly. Setting it to 1 means the random smooth is actually a
+        random intercept. Defaults to 1
     :type c: float
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
@@ -2467,22 +2574,22 @@ def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -2519,7 +2626,7 @@ def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
         fl4 = mmat_RP @ sample
         f4[x4 == l4] = fl4[x4 == l4]
 
-    family = MULNOMLSS(4)  # noqa: F405
+    family = MULNOMLSS(4)
 
     mus = [
         np.exp((f0 + f4) * scale),
@@ -2536,8 +2643,8 @@ def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
 
     y = np.zeros(n, dtype=int)
 
-    for i in range(n):
-        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+    for ii in range(n):
+        y[ii] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[ii, :]), size=1)[0])
 
     dat = pd.DataFrame(
         {
@@ -2557,11 +2664,11 @@ def sim18(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
 
 
 def sim19(
-    n,
-    scale,
-    c=1,
-    seed=None,
-    correlate=False,
+    n: int,
+    scale: float,
+    c: int = 1,
+    seed: int | None = None,
+    correlate: bool = False,
 ):
     """
     Like :func:`sim17` but with a non-linear interaction of x1 and x2. Function
@@ -2581,7 +2688,9 @@ def sim19(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
-    :param scale: Standard deviation for `family='Gaussian'` else scale parameter
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param scale: Scale parameter used to manipulate SNR
     :type scale: float
     :param c: Effect strength for f(x1,x2) effect - 0 = No effect, 1 = Maximal effect
     :type c: float
@@ -2643,7 +2752,7 @@ def sim19(
     ) * np.power(1 - x2, 10)
     f3 = np.zeros_like(x3)
 
-    family = MULNOMLSS(4)  # noqa: F405
+    family = MULNOMLSS(4)
 
     mus = [
         np.exp(f0 * scale),
@@ -2660,8 +2769,8 @@ def sim19(
 
     y = np.zeros(n, dtype=int)
 
-    for i in range(n):
-        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+    for ii in range(n):
+        y[ii] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[ii, :]), size=1)[0])
 
     dat = pd.DataFrame(
         {
@@ -2681,9 +2790,9 @@ def sim19(
 
 
 def sim20(
-    n,
-    c=1,
-    seed=None,
+    n: int,
+    c: float = 1,
+    seed: int | None = None,
     correlate=False,
 ):
     """
@@ -2707,6 +2816,8 @@ def sim20(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
     :type c: float
     :param seed: Seed for simulation, defaults to None meaning no seed is used
@@ -2793,10 +2904,10 @@ def sim20(
 
 
 def sim21(
-    n,
-    c=1,
-    n_ranef=40,
-    seed=None,
+    n: int,
+    c: float = 1,
+    n_ranef: int = 40,
+    seed: int | None = None,
     correlate=False,
 ):
     """
@@ -2824,7 +2935,11 @@ def sim21(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
-    :param c: Effect strength for x0 effect - 0 = No effect, 1 = Maximal effect
+    :param n: Number of datapoints to simulate.
+    :type n: int
+    :param c: Used here to scale the contribution of the random smooth. Setting it to 0 means the
+        ground truth is maximally wiggly. Setting it to 1 means the random smooth is actually a
+        random intercept. Defaults to 1
     :type c: float
     :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
     :type n_ranef: int
@@ -2877,22 +2992,22 @@ def sim21(
     # Based on prior assumption discussed by Wood (2017)
     fs_dat = pd.DataFrame({"x0": x0, "y": np_gen.random(n)})
 
-    fs_formula = Formula(  # noqa: F405
-        lhs=lhs("y"),  # noqa: F405
+    fs_formula = Formula(
+        lhs=lhs("y"),
         terms=[
-            f(  # noqa: F405
+            f(
                 ["x0"],
                 identifiable=False,
                 nk=10,
-                penalty=[DifferencePenalty()],  # noqa: F405
+                penalty=[DifferencePenalty()],
                 pen_kwargs=[{"m": 1}],
             )
         ],
         data=fs_dat,
     )
 
-    fs_model = GAMM(fs_formula, Gaussian())  # noqa: F405
-    fs_pen = build_penalties(fs_formula)  # noqa: F405
+    fs_model = GAMM(fs_formula, Gaussian())
+    fs_pen = build_penalties(fs_formula)
 
     mmat = fs_model.get_mmat()
     cov = fs_formula.cov_flat
@@ -2958,7 +3073,14 @@ def sim21(
     return dat
 
 
-def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
+def sim22(
+    n: int,
+    scale: float,
+    c: int = 1,
+    n_ranef=40,
+    seed: int | None = None,
+    correlate: bool = False,
+):
     """
     Like sim18, but with a random intercept of factor "x4" added to first linear predictor.
 
@@ -2971,11 +3093,13 @@ def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
         General Smooth Models
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param scale: Scale parameter to increase snr
     :type scale: float
     :param c: Effect strength for random effect - 0 = No effect, 1 = Maximal effect
     :type c: float
-    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :param n_ranef: Number of levels for the random effect. Defaults to 40.
     :type n_ranef: int
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
@@ -3023,7 +3147,7 @@ def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
     f3 = 1 * x3 + 0.03 * x3**2
     f4 = rind[x4]
 
-    family = MULNOMLSS(4)  # noqa: F405
+    family = MULNOMLSS(4)
 
     mus = [
         np.exp((f0 + f4) * scale),
@@ -3040,8 +3164,8 @@ def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
 
     y = np.zeros(n, dtype=int)
 
-    for i in range(n):
-        y[i] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[i, :]), size=1)[0])
+    for ii in range(n):
+        y[ii] = int(np_gen.choice([0, 1, 2, 3, 4], p=np.exp(ps[ii, :]), size=1)[0])
 
     dat = pd.DataFrame(
         {
@@ -3061,10 +3185,10 @@ def sim22(n, scale, c=1, n_ranef=40, seed=None, correlate=False):
 
 
 def sim23(
-    n,
-    c=1,
-    n_ranef=40,
-    seed=None,
+    n: int,
+    c: float = 1,
+    n_ranef: int = 40,
+    seed: int | None = None,
     correlate=False,
 ):
     """
@@ -3090,9 +3214,11 @@ def sim23(
         https://doi.org/10.1111/j.1541-0420.2006.00574.x
      - mgcv source code: gam.sim.r
 
+    :param n: Number of datapoints to simulate.
+    :type n: int
     :param c: Effect strength for random effect - 0 = No effect, 1 = Maximal effect
     :type c: float
-    :param n_ranef: Number of levels for the random smooth term. Defaults to 40.
+    :param n_ranef: Number of levels for the random factor. Defaults to 40.
     :type n_ranef: int
     :param seed: Seed for simulation, defaults to None meaning no seed is used
     :type seed: int | None, optional
